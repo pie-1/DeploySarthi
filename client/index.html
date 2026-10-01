@@ -1,13 +1,108 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>client</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/logo1.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <title>DeploySarthi - Ship with confidence</title>
+  <style>
+    /* Inline loader styles - loads instantly */
+    #initial-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #fafafa;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+
+    #initial-loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loader-rocket {
+      width: 64px;
+      height: 64px;
+      animation: float 1.5s ease-in-out infinite;
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-12px);
+      }
+    }
+
+    .loader-bar {
+      width: 120px;
+      height: 3px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      margin-top: 20px;
+      overflow: hidden;
+    }
+
+    .loader-bar-fill {
+      height: 100%;
+      background: #4F46E5;
+      border-radius: 3px;
+      animation: fill 1.2s ease-in-out infinite;
+    }
+
+    @keyframes fill {
+      0% {
+        width: 0%;
+      }
+
+      50% {
+        width: 70%;
+      }
+
+      100% {
+        width: 100%;
+      }
+    }
+
+    .loader-text {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Initial loader - shows before React loads -->
+  <div id="initial-loader">
+    <svg class="loader-rocket" viewBox="0 0 64 64" fill="none">
+      <path d="M32 8 C32 8, 22 20, 22 36 L22 44 L42 44 L42 36 C42 20, 32 8, 32 8 Z" fill="#4F46E5" />
+      <circle cx="32" cy="28" r="4" fill="white" />
+      <path d="M22 38 L14 46 L22 44 Z" fill="#4F46E5" />
+      <path d="M42 38 L50 46 L42 44 Z" fill="#4F46E5" />
+      <rect x="28" y="46" width="2" height="8" rx="1" fill="#4F46E5" opacity="0.6" />
+      <rect x="31" y="46" width="2" height="10" rx="1" fill="#4F46E5" />
+      <rect x="34" y="46" width="2" height="8" rx="1" fill="#4F46E5" opacity="0.6" />
+    </svg>
+    <div class="loader-bar">
+      <div class="loader-bar-fill"></div>
+    </div>
+    <p class="loader-text">Preparing your workspace...</p>
+  </div>
+
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
