@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
+// Hide the initial loader once React mounts
 const loader = document.getElementById('initial-loader');
 if (loader) {
   setTimeout(() => {
