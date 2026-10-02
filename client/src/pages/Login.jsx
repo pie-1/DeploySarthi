@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 import Logo from '../components/Logo';
 
 const authImages = [
-  { src: '/images/auth1.webp', caption: 'Deploy in seconds, not hours.' },
-  { src: '/images/auth2.webp', caption: 'AI explains what broke.' },
-  { src: '/images/auth3.webp', caption: 'Sleep better at night.' },
+  { src: '/images/auth-1.png', caption: 'Deploy in seconds, not hours.' },
+  { src: '/images/auth-2.png', caption: 'AI explains what broke.' },
+  { src: '/images/auth-3.png', caption: 'Sleep better at night.' },
 ];
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,14 +19,86 @@ const Login = () => {
   const [imageIndex, setImageIndex] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
-  // Rotate images every 4 seconds
+  const { login, loginWithGoogle, user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const googleBtnRef = useRef(null);
+  const googleInitialized = useRef(false);
+
+  const from = location.state?.from?.pathname || '/';
+
   useEffect(() => {
+    if (user) navigate(from, { replace: true });
+  }, [user, navigate, from]);
+
+  useEffect(() => {
+      console.log('=== Google OAuth Check ===');
+      console.log('Client ID:', import.meta.env.VITE_GOOGLE_CLIENT_ID);
+      console.log('Script loaded:', typeof window.google);
+      console.log('Container exists:', !!googleBtnRef.current);
     const interval = setInterval(() => {
       setImageIndex((prev) => (prev + 1) % authImages.length);
     }, 4000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Handle Google callback
+  const handleGoogleResponse = async (response) => {
+    setError('');
+    setLoading(true);
+    try {
+      await loginWithGoogle(response.credential);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialize Google button ONCE
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    if (googleInitialized.current) return; // Guard against StrictMode double-mount
+
+    const initGoogle = () => {
+      if (!window.google || !googleBtnRef.current) return;
+
+      // Calculate width in pixels (Google requires pixels, not %)
+      const containerWidth = googleBtnRef.current.offsetWidth || 320;
+      const buttonWidth = Math.min(Math.max(containerWidth, 200), 400);
+
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleResponse,
+      });
+
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: buttonWidth,
+        text: 'continue_with',
+        shape: 'rectangular',
+        logo_alignment: 'left',
+      });
+
+      googleInitialized.current = true;
+    };
+
+    // Load Google script
+    if (!document.getElementById('google-identity')) {
+      const script = document.createElement('script');
+      script.id = 'google-identity';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initGoogle;
+      document.head.appendChild(script);
+    } else {
+      // Script already loaded, init after a tick to ensure container has width
+      setTimeout(initGoogle, 100);
+    }
   }, []);
 
   const handleSubmit = async (e) => {
@@ -31,11 +106,8 @@ const Login = () => {
     setError('');
     setLoading(true);
     try {
-      // TODO: Replace with actual API call
-      // const res = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-      // localStorage.setItem('deploysarthi_user', JSON.stringify(res.data.data));
-      await new Promise((r) => setTimeout(r, 800)); // Simulate
-      navigate('/');
+      await login(email, password);
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
     } finally {
@@ -60,29 +132,25 @@ const Login = () => {
               </p>
             </div>
 
-            {/* Google OAuth */}
-            <button
-              type="button"
-              className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200
-                rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
-                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 009 18z"/>
-                <path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 013.68 9c0-.6.1-1.18.28-1.72V4.95H.96A9 9 0 000 9c0 1.45.35 2.82.96 4.05l3.01-2.33z"/>
-                <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 009 0 9 9 0 00.96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
-              </svg>
-              Continue with Google
-            </button>
+            {/* Google button container */}
+            <div
+              ref={googleBtnRef}
+              className="w-full mb-4 flex justify-center"
+              style={{ minHeight: '44px' }}
+            />
 
-            {/* Divider */}
+            {!GOOGLE_CLIENT_ID && (
+              <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mb-4">
+                Google OAuth not configured. Add VITE_GOOGLE_CLIENT_ID to .env
+              </p>
+            )}
+
             <div className="flex items-center gap-3 my-6">
               <div className="flex-1 h-px bg-gray-200"></div>
               <span className="text-xs text-gray-400">or</span>
               <div className="flex-1 h-px bg-gray-200"></div>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -151,7 +219,7 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Right: Rotating images (hidden on mobile) */}
+      {/* Right: Rotating images */}
       <div className="hidden lg:flex flex-1 relative overflow-hidden bg-gradient-to-br from-indigo-500 to-violet-600">
         {authImages.map((img, i) => (
           <div
@@ -164,14 +232,11 @@ const Login = () => {
               src={img.src}
               alt={img.caption}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
+              onError={(e) => { e.target.style.display = 'none'; }}
             />
           </div>
         ))}
 
-        {/* Caption overlay */}
         <div className="absolute bottom-12 left-12 right-12 z-10">
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-6 py-4 inline-block">
             <p className="text-lg font-medium text-gray-900">
