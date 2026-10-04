@@ -6,18 +6,15 @@ const { protect } = require('../middleware/auth');
 
 router.use(protect);
 
-// Get all projects for user
 router.get('/', async (req, res) => {
   try {
-    const projects = await Project.find({ owner: req.userId })
-      .sort({ createdAt: -1 });
+    const projects = await Project.find({ owner: req.userId }).sort({ createdAt: -1 });
     res.json({ success: true, data: projects });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// Get single project with incidents
 router.get('/:id', async (req, res) => {
   try {
     const project = await Project.findOne({ _id: req.params.id, owner: req.userId });
@@ -33,10 +30,15 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create project
 router.post('/', async (req, res) => {
   try {
-    const { name, description, githubRepo, deploymentTarget, environment } = req.body;
+    const {
+      name, description,
+      githubRepo, githubRepoId, githubDefaultBranch,
+      githubLanguage, githubStars, githubIsPrivate,
+      vercelProjectId, vercelProjectName, vercelUrl, vercelFramework,
+      deploymentTarget, environment,
+    } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'Name is required' });
@@ -46,6 +48,15 @@ router.post('/', async (req, res) => {
       name,
       description: description || '',
       githubRepo: githubRepo || '',
+      githubRepoId: githubRepoId || undefined,
+      githubDefaultBranch: githubDefaultBranch || 'main',
+      githubLanguage: githubLanguage || '',
+      githubStars: githubStars || 0,
+      githubIsPrivate: githubIsPrivate || false,
+      vercelProjectId: vercelProjectId || '',
+      vercelProjectName: vercelProjectName || '',
+      vercelUrl: vercelUrl || '',
+      vercelFramework: vercelFramework || '',
       deploymentTarget: deploymentTarget || 'none',
       environment: environment || 'development',
       owner: req.userId,
@@ -57,13 +68,12 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update project
 router.patch('/:id', async (req, res) => {
   try {
     const project = await Project.findOneAndUpdate(
       { _id: req.params.id, owner: req.userId },
       { $set: req.body },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
@@ -74,7 +84,6 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// Delete project
 router.delete('/:id', async (req, res) => {
   try {
     const project = await Project.findOneAndDelete({

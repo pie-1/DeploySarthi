@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Server, GitBranch, Trash2, ArrowUpRight } from 'lucide-react';
+import { Plus, Server, Trash2, ArrowUpRight } from 'lucide-react';
+import { FaGithub } from 'react-icons/fa';
 import { projectService } from '../services/projectService';
 import CreateProjectModal from '../components/dashboard/CreateProjectModal';
 
@@ -74,7 +75,10 @@ const Projects = () => {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-48 bg-white border border-gray-200 rounded-2xl animate-pulse" />
+              <div
+                key={i}
+                className="h-56 bg-white border border-gray-200 rounded-2xl animate-pulse"
+              />
             ))}
           </div>
         ) : projects.length === 0 ? (
@@ -116,7 +120,10 @@ const Projects = () => {
                     >
                       <Trash2 size={14} />
                     </button>
-                    <ArrowUpRight size={14} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
+                    <ArrowUpRight
+                      size={14}
+                      className="text-gray-300 group-hover:text-indigo-600 transition-colors"
+                    />
                   </div>
                 </div>
 
@@ -136,10 +143,21 @@ const Projects = () => {
                   </span>
                 </div>
 
-                {p.githubRepo && (
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate pt-3 border-t border-gray-100">
-                    <GitBranch size={12} />
-                    {p.githubRepo}
+                {/* Integrations */}
+                {(p.githubRepo || p.vercelProjectId) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-3 border-t border-gray-100">
+                    {p.githubRepo && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                        <FaGithub size={10} />
+                        <span className="truncate max-w-[140px]">{p.githubRepo}</span>
+                      </span>
+                    )}
+                    {p.vercelProjectId && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                        <span className="font-bold text-black">▲</span>
+                        <span className="truncate max-w-[140px]">{p.vercelProjectName}</span>
+                      </span>
+                    )}
                   </div>
                 )}
               </Link>

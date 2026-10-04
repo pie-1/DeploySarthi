@@ -3,11 +3,11 @@ const router = express.Router();
 const Incident = require('../models/Incident');
 const Project = require('../models/Project');
 const aiService = require('../services/aiService');
+const { broadcast } = require('../services/wsServer');
 const { protect } = require('../middleware/auth');
 
 router.use(protect);
 
-// Get all incidents for user's projects
 router.get('/', async (req, res) => {
   try {
     const projects = await Project.find({ owner: req.userId }).select('_id');
@@ -24,7 +24,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single incident
 router.get('/:id', async (req, res) => {
   try {
     const incident = await Incident.findById(req.params.id).populate('project');
@@ -37,13 +36,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create incident (triggered by monitoring job)
 router.post('/', async (req, res) => {
   try {
     const { projectId, title, severity, symptoms, timeline, relatedDeployment } = req.body;
 
     if (!projectId || !title) {
       return res.status(400).json({ success: false, message: 'projectId and title required' });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
     const incident = await Incident.create({
@@ -55,21 +58,45 @@ router.post('/', async (req, res) => {
       relatedDeployment: relatedDeployment || {},
     });
 
-    // Trigger AI investigation
-    const aiResult = await aiService.investigate({
-      title,
+    broadcast('incident:created', {
+      _id: incident._id,
+      title: incident.title,
       severity: incident.severity,
-      startedAt: incident.startedAt.toISOString(),
+      startedAt: incident.startedAt,
+      project: { name: project.name },
       symptoms: incident.symptoms,
-      timeline: incident.timeline,
-      relatedDeployment: incident.relatedDeployment,
+      aiAnalysis: incident.aiAnalysis,
     });
 
-    incident.aiAnalysis = {
-      ...aiResult.analysis,
-      generatedAt: new Date(),
-    };
-    await incident.save();
+    // AI investigation async
+    (async () => {
+      try {
+        const aiResult = await aiService.investigate({
+          title: incident.title,
+          severity: incident.severity,
+          startedAt: incident.startedAt.toISOString(),
+          symptoms: incident.symptoms,
+          timeline: incident.timeline,
+          relatedDeployment: incident.relatedDeployment,
+        });
+
+        incident.aiAnalysis = { ...aiResult.analysis, generatedAt: new Date() };
+        incident.timeline.push({
+          timestamp: new Date().toISOString(),
+          service: 'ai',
+          event: 'AI investigation completed',
+        });
+        await incident.save();
+
+        broadcast('incident:analyzed', {
+          _id: incident._id,
+          aiAnalysis: incident.aiAnalysis,
+          timeline: incident.timeline,
+        });
+      } catch (err) {
+        console.error('[ai] failed:', err.message);
+      }
+    })();
 
     res.status(201).json({ success: true, data: incident });
   } catch (err) {
@@ -77,24 +104,28 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Acknowledge incident
 router.patch('/:id/acknowledge', async (req, res) => {
   try {
     const incident = await Incident.findByIdAndUpdate(
       req.params.id,
       { status: 'acknowledged', acknowledgedAt: new Date() },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!incident) {
       return res.status(404).json({ success: false, message: 'Incident not found' });
     }
+
+    broadcast('incident:updated', {
+      _id: incident._id,
+      status: incident.status,
+    });
+
     res.json({ success: true, data: incident });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// Resolve incident
 router.patch('/:id/resolve', async (req, res) => {
   try {
     const incident = await Incident.findByIdAndUpdate(
@@ -105,11 +136,17 @@ router.patch('/:id/resolve', async (req, res) => {
         resolvedBy: req.userId,
         resolutionNotes: req.body.notes || '',
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!incident) {
       return res.status(404).json({ success: false, message: 'Incident not found' });
     }
+
+    broadcast('incident:updated', {
+      _id: incident._id,
+      status: incident.status,
+    });
+
     res.json({ success: true, data: incident });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
