@@ -7,13 +7,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem('deploysarthi_user');
     if (stored) {
       try {
         setUser(JSON.parse(stored));
-      } catch (e) {
+      } catch {
         localStorage.removeItem('deploysarthi_user');
       }
     }
@@ -31,21 +30,10 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   }, []);
 
-  const register = useCallback(async (name, email, password) => {
-    const res = await api.post('/auth/register', { name, email, password });
+  const register = useCallback(async (name, email, password, phone) => {
+    const res = await api.post('/auth/register', { name, email, password, phone });
     if (res.data.success) persist(res.data.data);
     return res.data;
-  }, []);
-
-  const loginWithGoogle = useCallback(async (credential) => {
-    try {
-      const res = await api.post('/auth/google', { credential });
-      if (res.data.success) persist(res.data.data);
-      return res.data;
-    } catch (error) {
-      console.error('Google login error:', error.response?.data || error.message);
-      throw error;
-    }
   }, []);
 
   const logout = useCallback(() => {
@@ -54,9 +42,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{ user, loading, login, register, loginWithGoogle, logout }}
-    >
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

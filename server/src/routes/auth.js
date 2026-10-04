@@ -1,141 +1,110 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const {OAuth2Client} = require('google-auth-library');
-const User = require('../models/User')
+const User = require('../models/User');
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'secret123', { expiresIn: '30d' });
-};
+const formatUser = (user, token) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  role: user.role,
+  avatar: user.avatar,
+  token,
+});
 
-router.post('/register', async (req, res) => {
+// ============ REGISTER ============
+router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ success: false, message: 'All fields required' });
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required',
+      });
     }
 
     const existing = await User.findOne({ email });
     if (existing) {
-      return res.status(400).json({ success: false, message: 'Email already exists' });
+      return res.status(400).json({
+        success: false,
+        message: 'Email already exists',
+      });
     }
 
-    const user = await User.create({ name, email, password, provider: 'local' });
+    const user = await User.create({
+      name,
+      email,
+      password,
+      phone: phone || '',
+    });
 
     res.status(201).json({
       success: true,
-      data: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role,
-        provider: user.provider,
-        token: generateToken(user._id),
-      },
+      data: formatUser(user, generateToken(user._id)),
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    next(error);  // ← Pass to error handler
   }
 });
 
-router.post('/login', async (req, res) => {
+// ============ LOGIN ============
+router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required',
+      });
+    }
+
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+      });
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role,
-        provider: user.provider,
-        token: generateToken(user._id),
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-router.post('/google', async (req, res) => {
-  try {
-    const { credential } = req.body;
-
-    // Verify Google ID token
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-    const { sub: googleId, email, name, picture } = payload;
-
-    let user = await User.findOne({ email });
-
-    if (user) {      
-      if (!user.googleId) {
-        user.googleId = googleId;
-        user.provider = 'google';
-        if (picture && !user.avatar) user.avatar = picture;
-        await user.save();
-      }
-    } else {      
-      user = await User.create({
-        name,
-        email,
-        googleId,
-        avatar: picture,
-        provider: 'google',
+    const match = await user.comparePassword(password);
+    if (!match) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
       });
     }
 
     res.json({
       success: true,
-      data: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role,
-        provider: user.provider,
-        token: generateToken(user._id),
-      },
+      data: formatUser(user, generateToken(user._id)),
     });
   } catch (error) {
-    console.error('Google auth error:', error.message);
-    res.status(401).json({ success: false, message: 'Google authentication failed' });
+    next(error);
   }
 });
 
-router.get('/me', async (req, res) => {
+// ============ GET CURRENT USER ============
+router.get('/me', async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ success: false, message: 'No token' });
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token' });
+    }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret123');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select('-password');
-
-    if (!user) return res.status(401).json({ success: false, message: 'User not found' });
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not found' });
+    }
 
     res.json({ success: true, data: user });
   } catch (error) {
-    res.status(401).json({ success: false, message: 'Invalid token' });
+    next(error);
   }
 });
 

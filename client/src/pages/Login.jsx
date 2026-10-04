@@ -1,16 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import Logo from '../components/Logo';
 
 const authImages = [
-  { src: '/images/auth-1.png', caption: 'Deploy in seconds, not hours.' },
-  { src: '/images/auth-2.png', caption: 'AI explains what broke.' },
-  { src: '/images/auth-3.png', caption: 'Sleep better at night.' },
+  { src: '/images/auth1.webp', caption: 'Deploy in seconds, not hours.' },
+  { src: '/images/auth4.webp', caption: 'AI explains what broke.' },
+  { src: '/images/auth3.webp', caption: 'Sleep better at night.' },
 ];
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -20,11 +18,9 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login, loginWithGoogle, user } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const googleBtnRef = useRef(null);
-  const googleInitialized = useRef(false);
 
   const from = location.state?.from?.pathname || '/';
 
@@ -33,77 +29,22 @@ const Login = () => {
   }, [user, navigate, from]);
 
   useEffect(() => {
-      console.log('=== Google OAuth Check ===');
-      console.log('Client ID:', import.meta.env.VITE_GOOGLE_CLIENT_ID);
-      console.log('Script loaded:', typeof window.google);
-      console.log('Container exists:', !!googleBtnRef.current);
     const interval = setInterval(() => {
       setImageIndex((prev) => (prev + 1) % authImages.length);
     }, 4000);
     return () => clearInterval(interval);
   }, []);
 
-  // Handle Google callback
-  const handleGoogleResponse = async (response) => {
-    setError('');
-    setLoading(true);
-    try {
-      await loginWithGoogle(response.credential);
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(err.response?.data?.message || 'Google sign-in failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initialize Google button ONCE
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) return;
-    if (googleInitialized.current) return; // Guard against StrictMode double-mount
-
-    const initGoogle = () => {
-      if (!window.google || !googleBtnRef.current) return;
-
-      // Calculate width in pixels (Google requires pixels, not %)
-      const containerWidth = googleBtnRef.current.offsetWidth || 320;
-      const buttonWidth = Math.min(Math.max(containerWidth, 200), 400);
-
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleResponse,
-      });
-
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: buttonWidth,
-        text: 'continue_with',
-        shape: 'rectangular',
-        logo_alignment: 'left',
-      });
-
-      googleInitialized.current = true;
-    };
-
-    // Load Google script
-    if (!document.getElementById('google-identity')) {
-      const script = document.createElement('script');
-      script.id = 'google-identity';
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = initGoogle;
-      document.head.appendChild(script);
-    } else {
-      // Script already loaded, init after a tick to ensure container has width
-      setTimeout(initGoogle, 100);
-    }
-  }, []);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Basic validation before submit
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     setLoading(true);
     try {
       await login(email, password);
@@ -117,7 +58,6 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex bg-[#fafafa]">
-      {/* Left: Form */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
           <Link to="/" className="flex justify-center mb-8">
@@ -132,26 +72,7 @@ const Login = () => {
               </p>
             </div>
 
-            {/* Google button container */}
-            <div
-              ref={googleBtnRef}
-              className="w-full mb-4 flex justify-center"
-              style={{ minHeight: '44px' }}
-            />
-
-            {!GOOGLE_CLIENT_ID && (
-              <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mb-4">
-                Google OAuth not configured. Add VITE_GOOGLE_CLIENT_ID to .env
-              </p>
-            )}
-
-            <div className="flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-gray-200"></div>
-              <span className="text-xs text-gray-400">or</span>
-              <div className="flex-1 h-px bg-gray-200"></div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Email address
@@ -160,8 +81,12 @@ const Login = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email address"
+                  placeholder="you@example.com"
                   required
+                  autoComplete="new-password"
+                  name="email-login"
+                  pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
+                  title="Please enter a valid email address"
                   className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-lg
                     focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
                     placeholder:text-gray-400"
@@ -179,6 +104,10 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     required
+                    minLength={6}
+                    maxLength={72}
+                    autoComplete="new-password"
+                    name="password-login"
                     className="w-full px-3.5 py-2.5 pr-10 text-sm bg-white border border-gray-200 rounded-lg
                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
                       placeholder:text-gray-400"
@@ -219,7 +148,6 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Right: Rotating images */}
       <div className="hidden lg:flex flex-1 relative overflow-hidden bg-gradient-to-br from-indigo-500 to-violet-600">
         {authImages.map((img, i) => (
           <div

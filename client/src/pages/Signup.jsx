@@ -1,87 +1,51 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import Logo from '../components/Logo';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-
 const Signup = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { register, loginWithGoogle, user } = useAuth();
+  const { register, user } = useAuth();
   const navigate = useNavigate();
-  const googleBtnRef = useRef(null);
-  const googleInitialized = useRef(false);
 
   useEffect(() => {
     if (user) navigate('/', { replace: true });
   }, [user, navigate]);
 
-  const handleGoogleResponse = async (response) => {
-    setError('');
-    setLoading(true);
-    try {
-      await loginWithGoogle(response.credential);
-      navigate('/', { replace: true });
-    } catch (err) {
-      setError(err.response?.data?.message || 'Google sign-up failed');
-    } finally {
-      setLoading(false);
-    }
+const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    const filtered = value.replace(/[^\d+\s-]/g, '');
+    setPhone(filtered);
   };
-
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) return;
-    if (googleInitialized.current) return;
-
-    const initGoogle = () => {
-      if (!window.google || !googleBtnRef.current) return;
-
-      const containerWidth = googleBtnRef.current.offsetWidth || 320;
-      const buttonWidth = Math.min(Math.max(containerWidth, 200), 400);
-
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleResponse,
-      });
-
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: buttonWidth,
-        text: 'signup_with',
-        shape: 'rectangular',
-        logo_alignment: 'left',
-      });
-
-      googleInitialized.current = true;
-    };
-
-    if (!document.getElementById('google-identity')) {
-      const script = document.createElement('script');
-      script.id = 'google-identity';
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = initGoogle;
-      document.head.appendChild(script);
-    } else {
-      setTimeout(initGoogle, 100);
-    }
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    
+    if (phone) {
+      const digitsOnly = phone.replace(/\D/g, '');
+      if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+        setError('Please enter a valid phone number (7-15 digits)');
+        return;
+      }
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     setLoading(true);
     try {
-      await register(name, email, password);
+      await register(name, email, password, phone);
       navigate('/', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Signup failed');
@@ -108,25 +72,8 @@ const Signup = () => {
             </p>
           </div>
 
-          <div
-            ref={googleBtnRef}
-            className="w-full mb-4 flex justify-center"
-            style={{ minHeight: '44px' }}
-          />
-
-          {!GOOGLE_CLIENT_ID && (
-            <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mb-4">
-              Google OAuth not configured. Add VITE_GOOGLE_CLIENT_ID to .env
-            </p>
-          )}
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-gray-200"></div>
-            <span className="text-xs text-gray-400">or</span>
-            <div className="flex-1 h-px bg-gray-200"></div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            {/* Full Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Full name
@@ -137,12 +84,17 @@ const Signup = () => {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter your full name"
                 required
+                minLength={2}
+                maxLength={50}
+                autoComplete="off"
+                name="fullname-signup"
                 className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-lg
                   focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
                   placeholder:text-gray-400"
               />
             </div>
 
+            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Email address
@@ -151,14 +103,43 @@ const Signup = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email address"
+                placeholder="you@example.com"
                 required
+                autoComplete="new-password"
+                name="email-signup"
+                pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
+                title="Please enter a valid email address"
                 className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-lg
                   focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
                   placeholder:text-gray-400"
               />
             </div>
 
+            {/* Phone */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                WhatsApp number
+                <span className="text-gray-400 font-normal ml-1">(optional)</span>
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={handlePhoneChange}
+                placeholder="+977 98XXXXXXXX"
+                autoComplete="off"
+                name="phone-signup"
+                inputMode="tel"
+                maxLength={20}
+                className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-lg
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+                  placeholder:text-gray-400"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">
+                Used for critical incident alerts (digits only)
+              </p>
+            </div>
+
+            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Password
@@ -171,6 +152,9 @@ const Signup = () => {
                   placeholder="Enter your password"
                   required
                   minLength={6}
+                  maxLength={72}
+                  autoComplete="new-password"
+                  name="password-signup"
                   className="w-full px-3.5 py-2.5 pr-10 text-sm bg-white border border-gray-200 rounded-lg
                     focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
                     placeholder:text-gray-400"
@@ -184,7 +168,7 @@ const Signup = () => {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1.5">
-                Must be at least 6 characters
+                At least 6 characters
               </p>
             </div>
 

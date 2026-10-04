@@ -5,6 +5,7 @@ import CustomCursor from './components/CustomCursor';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -12,18 +13,17 @@ function App() {
       <BrowserRouter>
         <CustomCursor />
         <Routes>
-          {/* Public routes */}
+          {/* Public */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
 
-          {/* 
-          <Route path="/dashboard" element={
+          {/* Protected */}
+          <Route path="/profile" element={
             <ProtectedRoute>
-              <Dashboard />
+              <Profile />
             </ProtectedRoute>
           } />
-          */}
         </Routes>
       </BrowserRouter>
     </AuthProvider>

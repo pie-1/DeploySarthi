@@ -3,25 +3,21 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  email: { type: String, required: true, unique: true, lowercase: true },
-  password: { type: String, minlength: 6 }, // Optional for Google users
-  googleId: { type: String, sparse: true, unique: true },
-  avatar: { type: String, default: '' },
-  provider: { type: String, enum: ['local', 'google'], default: 'local' },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  phone: { type: String, default: '', trim: true },
+  password: { type: String, required: true, minlength: 6 },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
+  avatar: { type: String, default: '' },
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
 }, { timestamps: true });
 
-// Hash password before saving 
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password') || !this.password) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  if (!this.password) return false;
-  return await bcrypt.compare(candidatePassword, this.password);
+userSchema.methods.comparePassword = async function (candidate) {
+  return bcrypt.compare(candidate, this.password);
 };
 
 userSchema.set('toJSON', {
@@ -29,7 +25,7 @@ userSchema.set('toJSON', {
     delete ret.password;
     delete ret.__v;
     return ret;
-  }
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);
