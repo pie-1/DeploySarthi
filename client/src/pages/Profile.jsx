@@ -1,10 +1,9 @@
 import { Link } from 'react-router-dom';
 import {
   Mail, Phone, Calendar, Folder, Activity, Server,
-  Zap, TrendingUp, Settings, LogOut, ChevronRight
+  Zap, TrendingUp, Settings, LogOut, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import Logo from '../components/Logo';
 
 const Profile = () => {
   const { user, logout } = useAuth();
@@ -17,10 +16,7 @@ const Profile = () => {
     .toUpperCase() || 'U';
 
   const joinedDate = user?.createdAt
-    ? new Date(user.createdAt).toLocaleDateString('en-US', {
-        month: 'long',
-        year: 'numeric',
-      })
+    ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently';
 
   const stats = [
@@ -37,30 +33,21 @@ const Profile = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#fafafa] pt-24 pb-16 px-6">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
+    <div className="pb-16 px-6">
+      <div className="max-w-5xl mx-auto pt-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
-          <p className="text-gray-600 mt-1">Manage your account and preferences</p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Profile</h1>
+          <p className="text-sm text-gray-600 mt-1.5">Manage your account and preferences</p>
         </div>
 
         {/* User Card */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             <div className="flex-shrink-0">
-              {user?.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-20 h-20 rounded-full object-cover border-2 border-gray-100"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-indigo-600 text-white
-                  flex items-center justify-center text-2xl font-bold">
-                  {initials}
-                </div>
-              )}
+              <div className="w-20 h-20 rounded-full bg-indigo-600 text-white
+                flex items-center justify-center text-2xl font-bold">
+                {initials}
+              </div>
             </div>
 
             <div className="flex-1 min-w-0">
@@ -83,20 +70,17 @@ const Profile = () => {
               </div>
             </div>
 
-            <Link
-              to="/settings"
-              className="px-4 py-2 text-sm font-semibold text-gray-800
-                border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
+            <button className="px-4 py-2 text-sm font-semibold text-gray-800
+              border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
               Edit Profile
-            </Link>
+            </button>
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {stats.map((stat) => (
-            <div key={stat.label} className="bg-white border border-gray-200 rounded-xl p-4">
+            <div key={stat.label} className="bg-white border border-gray-200 rounded-xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <stat.icon size={18} className={stat.color} />
               </div>
