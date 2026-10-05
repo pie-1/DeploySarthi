@@ -15,6 +15,10 @@ import ProjectDetail from './pages/ProjectDetail';
 import Incidents from './pages/Incidents';
 import IncidentDetail from './pages/IncidentDetail';
 import Settings from './pages/Settings';
+import Deploy from './pages/Deploy';
+import AIInvestigation from './pages/AIInvestigation';
+import PublicGallery from './pages/PublicGallery';
+import PublicProject from './pages/PublicProject';
 
 function App() {
   return (
@@ -28,8 +32,10 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/gallery" element={<PublicGallery />} />
+            <Route path="/gallery/:id" element={<PublicProject />} />
 
-            {/* Protected */}
+            {/* Protected — user's own projects */}
             <Route path="/dashboard" element={
               <ProtectedRoute><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>
             } />
@@ -51,6 +57,16 @@ function App() {
             <Route path="/settings" element={
               <ProtectedRoute>
                 <DashboardLayout><Settings /></DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/deploy" element={
+              <ProtectedRoute>
+                <DashboardLayout><Deploy /></DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/ai" element={
+              <ProtectedRoute>
+                <DashboardLayout><AIInvestigation /></DashboardLayout>
               </ProtectedRoute>
             } />
           </Routes>

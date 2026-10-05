@@ -5,6 +5,26 @@ const { protect } = require('../middleware/auth');
 
 router.use(protect);
 
+// ============ STATUS ============
+
+router.get('/status', async (req, res) => {
+  try {
+    const hasToken = !!process.env.VERCEL_TOKEN;
+    res.json({
+      success: true,
+      data: {
+        connected: hasToken,
+        mode: hasToken ? 'token' : 'none',
+        username: hasToken ? 'pie-1' : '',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ============ VERCEL API PROXIES ============
+
 router.get('/me', async (req, res) => {
   try {
     const user = await vercelService.getUser();
@@ -79,13 +99,68 @@ router.get('/deployments/:id/logs', async (req, res) => {
   }
 });
 
-router.post('/projects/:id/deploy', async (req, res) => {
+router.post('/auto-deploy', async (req, res) => {
   try {
-    const result = await vercelService.triggerDeployment(
-      req.params.id,
-      req.body || {},
-      null
-    );
+    const { name, gitRepo, framework } = req.body;
+
+    if (!name || !gitRepo) {
+      return res.status(400).json({
+        success: false,
+        message: 'name and gitRepo are required',
+      });
+    }
+
+    let project;
+    try {
+      project = await vercelService.createProjectFromGithub(
+        { name, gitRepo, framework },
+        null
+      );
+    } catch (err) {
+      const errMsg = err.response?.data?.error?.message || '';
+      if (errMsg.includes('already exists')) {
+        const projects = await vercelService.listProjects(null, 100);
+        const existing = projects.find((p) => p.name === name);
+        if (existing) {
+          project = {
+            id: existing.id,
+            name: existing.name,
+            url: existing.url,
+            framework: existing.framework,
+          };
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    const deployment = await vercelService.waitForFirstDeployment(project.id, null);
+
+    res.json({
+      success: true,
+      data: {
+        vercelProjectId: project.id,
+        vercelProjectName: project.name,
+        vercelUrl: project.url,
+        deploymentId: deployment?.id || '',
+        deploymentState: deployment?.state || 'QUEUED',
+        deploymentUrl: deployment?.url || '',
+      },
+    });
+  } catch (err) {
+    console.error('[auto-deploy] error:', err.message);
+    res.status(err.response?.status || 500).json({
+      success: false,
+      message: err.response?.data?.error?.message || err.message,
+    });
+  }
+});
+
+router.post('/projects/:id/redeploy', async (req, res) => {
+  try {
+    const result = await vercelService.redeploy(req.params.id, null);
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(err.response?.status || 500).json({

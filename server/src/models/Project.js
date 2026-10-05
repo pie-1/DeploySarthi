@@ -18,8 +18,18 @@ const projectSchema = new mongoose.Schema({
   vercelProjectName: { type: String, default: '' },
   vercelUrl: { type: String, default: '' },
   vercelFramework: { type: String, default: '' },
-  vercelLastDeploymentId: { type: String, default: '' },
 
+  // Public gallery
+  isPublic: { type: Boolean, default: false, index: true },
+  publishedAt: { type: Date, default: null },
+  publishedDescription: { type: String, default: '', maxlength: 1000 },
+  tags: [{ type: String, trim: true }],
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  likeCount: { type: Number, default: 0, index: true },
+  views: { type: Number, default: 0 },
+  commentCount: { type: Number, default: 0 },
+
+  // App-level
   deploymentUrl: { type: String, default: '' },
   deploymentTarget: {
     type: String,
@@ -41,6 +51,8 @@ const projectSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 projectSchema.index({ owner: 1, createdAt: -1 });
+projectSchema.index({ isPublic: 1, likeCount: -1 });
+projectSchema.index({ isPublic: 1, publishedAt: -1 });
 
 projectSchema.set('toJSON', {
   transform: (doc, ret) => {

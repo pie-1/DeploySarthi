@@ -100,4 +100,40 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/**
+ * Toggle project visibility
+ * PATCH /api/projects/:id/visibility
+ */
+router.patch('/:id/visibility', async (req, res) => {
+  try {
+    const { isPublic, publishedDescription, tags } = req.body;
+
+    const update = {};
+    if (typeof isPublic === 'boolean') {
+      update.isPublic = isPublic;
+      update.publishedAt = isPublic ? new Date() : null;
+    }
+    if (typeof publishedDescription === 'string') {
+      update.publishedDescription = publishedDescription.slice(0, 1000);
+    }
+    if (Array.isArray(tags)) {
+      update.tags = tags.slice(0, 10).map((t) => t.trim().toLowerCase());
+    }
+
+    const project = await Project.findOneAndUpdate(
+      { _id: req.params.id, owner: req.userId },
+      { $set: update },
+      { returnDocument: 'after' }
+    );
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    res.json({ success: true, data: project });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

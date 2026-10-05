@@ -32,4 +32,13 @@ router.post('/investigate', async (req, res) => {
   }
 });
 
+router.post('/suggest-prompts', async (req, res) => {
+  try {
+    const result = await aiService.suggestPrompts(req.body);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

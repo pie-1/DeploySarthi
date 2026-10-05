@@ -14,7 +14,7 @@ function createClient(token) {
   }
   return axios.create({
     baseURL: VERCEL_API,
-    timeout: 10000,
+    timeout: 15000,
     headers: {
       Authorization: `Bearer ${authToken}`,
       'Content-Type': 'application/json',
@@ -23,8 +23,38 @@ function createClient(token) {
 }
 
 /**
- * Get authenticated user's profile.
+ * Exchange OAuth code for access token.
  */
+async function exchangeCodeForToken(code) {
+  const params = new URLSearchParams({
+    client_id: process.env.VERCEL_CLIENT_ID,
+    client_secret: process.env.VERCEL_CLIENT_SECRET,
+    code,
+    redirect_uri: process.env.VERCEL_OAUTH_REDIRECT_URI,
+    grant_type: 'authorization_code',
+  });
+
+  // NEW endpoint for "Sign in with Vercel"
+  const res = await axios.post(
+    'https://api.vercel.com/login/oauth/token',
+    params.toString(),
+    {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 10000,
+    }
+  );
+
+  if (!res.data.access_token) {
+    throw new Error(res.data.error_description || 'OAuth exchange failed');
+  }
+
+  return {
+    accessToken: res.data.access_token,
+    refreshToken: res.data.refresh_token,
+    idToken: res.data.id_token,
+  };
+}
+
 async function getUser(token) {
   const client = createClient(token);
   const res = await client.get('/v2/user');
@@ -37,32 +67,22 @@ async function getUser(token) {
   };
 }
 
-/**
- * List projects.
- */
 async function listProjects(token, limit = 30) {
   const client = createClient(token);
-  const res = await client.get('/v9/projects', {
-    params: { limit },
-  });
+  const res = await client.get('/v9/projects', { params: { limit } });
 
   return (res.data.projects || []).map((p) => ({
     id: p.id,
     name: p.name,
     framework: p.framework,
     url: p.alias?.[0]?.domain || `${p.name}.vercel.app`,
-    gitRepo: p.link?.repo
-      ? `${p.link.org}/${p.link.repo}`
-      : p.link?.repoId || '',
+    gitRepo: p.link?.repo ? `${p.link.org}/${p.link.repo}` : '',
     gitBranch: p.link?.productionBranch || 'main',
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   }));
 }
 
-/**
- * Get single project.
- */
 async function getProject(projectIdOrName, token) {
   const client = createClient(token);
   const res = await client.get(`/v9/projects/${projectIdOrName}`);
@@ -77,9 +97,6 @@ async function getProject(projectIdOrName, token) {
   };
 }
 
-/**
- * List deployments for a project.
- */
 async function listDeployments(projectId, token, limit = 20) {
   const client = createClient(token);
   const res = await client.get('/v6/deployments', {
@@ -90,8 +107,8 @@ async function listDeployments(projectId, token, limit = 20) {
     id: d.uid,
     name: d.name,
     url: d.url,
-    state: d.state, // READY | ERROR | BUILDING | QUEUED | CANCELED
-    target: d.target, // production | preview | development
+    state: d.state,
+    target: d.target,
     createdAt: d.created,
     buildingAt: d.buildingAt,
     readyAt: d.ready,
@@ -107,9 +124,6 @@ async function listDeployments(projectId, token, limit = 20) {
   }));
 }
 
-/**
- * Get single deployment.
- */
 async function getDeployment(deploymentId, token) {
   const client = createClient(token);
   const res = await client.get(`/v13/deployments/${deploymentId}`);
@@ -133,32 +147,6 @@ async function getDeployment(deploymentId, token) {
   };
 }
 
-/**
- * Trigger a new deployment (redeploy the latest or a specific deployment).
- */
-async function triggerDeployment(projectId, options = {}, token) {
-  const { name = '', target = 'production' } = options;
-  const client = createClient(token);
-
-  const res = await client.post(
-    '/v13/deployments',
-    {
-      name,
-      target,
-      project: projectId,
-    }
-  );
-
-  return {
-    id: res.data.id,
-    url: res.data.url,
-    state: res.data.readyState || res.data.status,
-  };
-}
-
-/**
- * Get deployment build logs.
- */
 async function getDeploymentLogs(deploymentId, token) {
   const client = createClient(token);
   const res = await client.get(`/v3/deployments/${deploymentId}/events`, {
@@ -171,12 +159,114 @@ async function getDeploymentLogs(deploymentId, token) {
   }));
 }
 
+async function createProjectFromGithub({ name, gitRepo, framework = null }, token) {
+  const client = createClient(token);
+  const [org, repo] = gitRepo.split('/');
+
+  if (!org || !repo) {
+    throw new Error('Invalid gitRepo format. Expected "owner/repo"');
+  }
+
+  const payload = {
+    name,
+    gitRepository: {
+      type: 'github',
+      repo: `${org}/${repo}`,
+    },
+  };
+
+  if (framework) payload.framework = framework;
+
+  const res = await client.post('/v10/projects', payload);
+
+  return {
+    id: res.data.id,
+    name: res.data.name,
+    url: res.data.alias?.[0]?.domain || `${res.data.name}.vercel.app`,
+    framework: res.data.framework,
+    link: res.data.link,
+  };
+}
+
+async function redeploy(projectId, token) {
+  const client = createClient(token);
+  const project = await client.get(`/v9/projects/${projectId}`);
+  const projectName = project.data.name;
+
+  const deps = await client.get('/v6/deployments', {
+    params: { projectId, limit: 1, target: 'production' },
+  });
+
+  const latest = deps.data.deployments?.[0];
+  if (!latest) {
+    throw new Error('No deployments found. Deploy from GitHub first.');
+  }
+
+  const res = await client.post('/v13/deployments', {
+    name: projectName,
+    project: projectId,
+    target: 'production',
+    gitSource: {
+      type: 'github',
+      repoId: latest.meta?.githubRepoId,
+      ref: latest.meta?.githubCommitRef,
+      sha: latest.meta?.githubCommitSha,
+    },
+  });
+
+  return {
+    id: res.data.id,
+    url: res.data.url,
+    state: res.data.readyState || res.data.status,
+    createdAt: res.data.createdAt,
+  };
+}
+
+async function deleteProject(projectId, token) {
+  const client = createClient(token);
+  await client.delete(`/v9/projects/${projectId}`);
+  return { success: true };
+}
+
+async function waitForFirstDeployment(projectId, token, maxAttempts = 6) {
+  const client = createClient(token);
+
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((r) => setTimeout(r, 2500));
+
+    try {
+      const res = await client.get('/v6/deployments', {
+        params: { projectId, limit: 1 },
+      });
+
+      const latest = res.data.deployments?.[0];
+      if (latest) {
+        return {
+          id: latest.uid,
+          url: latest.url,
+          state: latest.state,
+          target: latest.target,
+          createdAt: latest.created,
+        };
+      }
+    } catch (err) {
+      // continue trying
+    }
+  }
+
+  return null;
+}
+
 module.exports = {
+  exchangeCodeForToken,
   getUser,
   listProjects,
   getProject,
   listDeployments,
   getDeployment,
-  triggerDeployment,
   getDeploymentLogs,
+  createProjectFromGithub,
+  redeploy,
+  deleteProject,
+  waitForFirstDeployment,
 };

@@ -23,6 +23,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
+//public 
+app.use('/api/public', require('./routes/public'));
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));

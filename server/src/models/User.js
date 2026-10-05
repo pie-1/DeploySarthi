@@ -17,6 +17,15 @@ const userSchema = new mongoose.Schema({
     connectedAt: { type: Date, default: null },
   },
 
+  vercel: {
+    connected: { type: Boolean, default: false },
+    accessToken: { type: String, default: '' },
+    userId: { type: String, default: '' },
+    username: { type: String, default: '' },
+    email: { type: String, default: '' },
+    connectedAt: { type: Date, default: null },
+  },
+
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
 }, { timestamps: true });
 
@@ -34,6 +43,7 @@ userSchema.set('toJSON', {
   transform: (doc, ret) => {
     delete ret.password;
     if (ret.github) delete ret.github.accessToken;
+    if (ret.vercel) delete ret.vercel.accessToken;
     delete ret.__v;
     return ret;
   },

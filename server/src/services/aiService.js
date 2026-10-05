@@ -59,5 +59,14 @@ async function health() {
     return { status: 'DOWN', error: err.message };
   }
 }
+async function suggestPrompts(context) {
+  try {
+    const res = await aiClient.post('/suggest-prompts', context);
+    return res.data;
+  } catch (err) {
+    console.error('AI suggest-prompts failed:', err.message);
+    return { suggestions: [] };
+  }
+}
 
-module.exports = { detect, investigate, health };
+module.exports = { detect, investigate, health, suggestPrompts };

@@ -6,12 +6,6 @@ import { projectService } from '../../services/projectService';
 import GitHubRepoPicker from '../projects/GitHubRepoPicker';
 import VercelProjectPicker from '../projects/VercelProjectPicker';
 
-const STEPS = {
-  1: { label: 'Basic info', hint: 'Project details' },
-  2: { label: 'GitHub', hint: 'Select a repository' },
-  3: { label: 'Vercel', hint: 'Select a Vercel project' },
-};
-
 const CreateProjectModal = ({ open, onClose, onCreated }) => {
   const [step, setStep] = useState(1);
 
@@ -60,7 +54,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
     setStep((s) => s - 1);
   };
 
-  const handleSubmit = async ({ skipGithub = false, skipVercel = false } = {}) => {
+  const handleSubmit = async () => {
     setError('');
     setLoading(true);
     try {
@@ -71,22 +65,20 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
         deploymentTarget,
       };
 
-      const repoToUse = skipGithub ? null : selectedRepo;
-      if (repoToUse) {
-        payload.githubRepo = repoToUse.fullName;
-        payload.githubRepoId = repoToUse.id;
-        payload.githubDefaultBranch = repoToUse.defaultBranch;
-        payload.githubLanguage = repoToUse.language || '';
-        payload.githubStars = repoToUse.stars || 0;
-        payload.githubIsPrivate = repoToUse.isPrivate || false;
+      if (selectedRepo) {
+        payload.githubRepo = selectedRepo.fullName;
+        payload.githubRepoId = selectedRepo.id;
+        payload.githubDefaultBranch = selectedRepo.defaultBranch;
+        payload.githubLanguage = selectedRepo.language || '';
+        payload.githubStars = selectedRepo.stars || 0;
+        payload.githubIsPrivate = selectedRepo.isPrivate || false;
       }
 
-      const vercelToUse = skipVercel ? null : selectedVercelProject;
-      if (vercelToUse) {
-        payload.vercelProjectId = vercelToUse.id;
-        payload.vercelProjectName = vercelToUse.name;
-        payload.vercelUrl = vercelToUse.url || '';
-        payload.vercelFramework = vercelToUse.framework || '';
+      if (selectedVercelProject) {
+        payload.vercelProjectId = selectedVercelProject.id;
+        payload.vercelProjectName = selectedVercelProject.name;
+        payload.vercelUrl = selectedVercelProject.url || '';
+        payload.vercelFramework = selectedVercelProject.framework || '';
       }
 
       const res = await projectService.create(payload);
@@ -137,7 +129,8 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">New Project</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Step {step} of 3 · {STEPS[step].label}
+                      Step {step} of 3 ·{' '}
+                      {step === 1 ? 'Basic info' : step === 2 ? 'GitHub repo' : 'Vercel project'}
                     </p>
                   </div>
                 </div>
@@ -149,18 +142,16 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                 </button>
               </div>
 
-              {/* Step indicator */}
-              <div className="px-6 pt-4">
-                <div className="flex items-center gap-2">
-                  {[1, 2, 3].map((s) => (
-                    <div
-                      key={s}
-                      className={`h-1 rounded-full flex-1 transition-colors ${
-                        s <= step ? 'bg-indigo-600' : 'bg-gray-200'
-                      }`}
-                    />
-                  ))}
-                </div>
+              {/* Progress bar */}
+              <div className="px-6 pt-4 flex items-center gap-2">
+                {[1, 2, 3].map((s) => (
+                  <div
+                    key={s}
+                    className={`h-1 rounded-full flex-1 transition-colors ${
+                      s <= step ? 'bg-indigo-600' : 'bg-gray-200'
+                    }`}
+                  />
+                ))}
               </div>
 
               {/* Body */}
@@ -258,9 +249,9 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                 {step === 3 && (
                   <div>
                     <div className="flex items-center gap-2 mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-                      <span className="text-indigo-600 font-bold text-xs">▲</span>
+                      <span className="text-indigo-600 font-bold text-sm">▲</span>
                       <p className="text-xs text-indigo-900">
-                        Select a Vercel project to link. Optional.
+                        Select an existing Vercel project to link. Optional.
                       </p>
                     </div>
 
@@ -310,7 +301,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                   {step === 2 && (
                     <>
                       <button
-                        onClick={() => handleNext()}
+                        onClick={handleNext}
                         className="px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-200
                           rounded-lg hover:bg-gray-50 transition-colors"
                       >
@@ -329,7 +320,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                   {step === 3 && (
                     <>
                       <button
-                        onClick={() => handleSubmit({ skipVercel: true })}
+                        onClick={handleSubmit}
                         disabled={loading}
                         className="px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-200
                           rounded-lg hover:bg-gray-50 transition-colors"
@@ -337,7 +328,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                         Skip
                       </button>
                       <button
-                        onClick={() => handleSubmit({})}
+                        onClick={handleSubmit}
                         disabled={loading}
                         className="px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-lg
                           hover:bg-indigo-700 transition-colors disabled:opacity-60"

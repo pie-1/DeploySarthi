@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, ExternalLink, Triangle } from 'lucide-react';
+import { Search, Triangle } from 'lucide-react';
 import { vercelService } from '../../services/vercelService';
 
 const FRAMEWORK_LABELS = {
@@ -63,13 +63,15 @@ const VercelProjectPicker = ({ selectedProject, onSelect }) => {
       <div className="p-8 text-center bg-gray-50 rounded-lg">
         <Triangle size={32} className="text-gray-400 mx-auto mb-2" />
         <p className="text-sm text-gray-600">No Vercel projects found</p>
+        <p className="text-xs text-gray-400 mt-1">
+          You can deploy a GitHub repo to Vercel in the next step
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {/* Search */}
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
@@ -82,7 +84,6 @@ const VercelProjectPicker = ({ selectedProject, onSelect }) => {
         />
       </div>
 
-      {/* List */}
       <div className="max-h-72 overflow-y-auto space-y-1.5 border border-gray-200 rounded-lg p-2 bg-gray-50">
         {filtered.length === 0 ? (
           <p className="text-xs text-gray-500 text-center py-4">
@@ -106,12 +107,10 @@ const VercelProjectPicker = ({ selectedProject, onSelect }) => {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-sm text-gray-900 truncate">
-                        {p.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500">
+                    <span className="font-semibold text-sm text-gray-900 truncate block">
+                      {p.name}
+                    </span>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500">
                       <span className="px-1.5 py-0.5 bg-gray-100 rounded font-medium">
                         {framework}
                       </span>

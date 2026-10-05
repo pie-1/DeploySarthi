@@ -21,6 +21,11 @@ export const projectService = {
     return res.data;
   },
 
+  updateVisibility: async (id, data) => {
+    const res = await api.patch(`/projects/${id}/visibility`, data);
+    return res.data;
+  },
+
   remove: async (id) => {
     const res = await api.delete(`/projects/${id}`);
     return res.data;
@@ -67,6 +72,11 @@ export const aiService = {
 
   investigate: async (incident) => {
     const res = await api.post('/ai/investigate', incident);
+    return res.data;
+  },
+
+  suggestPrompts: async (context) => {
+    const res = await api.post('/ai/suggest-prompts', context);
     return res.data;
   },
 };

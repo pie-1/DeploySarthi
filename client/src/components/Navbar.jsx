@@ -18,11 +18,13 @@ const Navbar = () => {
   }, []);
 
   const publicLinks = [
+    { label: 'Gallery', to: '/gallery' },
     { label: 'Docs', to: '/docs' },
   ];
 
   const privateLinks = [
     { label: 'Dashboard', to: '/dashboard' },
+    { label: 'Projects', to: '/projects' },
     { label: 'Deploy', to: '/deploy' },
     { label: 'Incidents', to: '/incidents' },
     { label: 'AI Investigation', to: '/ai' },
@@ -39,7 +41,6 @@ const Navbar = () => {
           <Logo size={32} />
         </Link>
 
-        {/* Center: nav links + search */}
         <div className="hidden lg:flex items-center gap-1 flex-1 justify-center">
           {navLinks.map((link) => (
             <Link
@@ -52,7 +53,6 @@ const Navbar = () => {
             </Link>
           ))}
 
-          {/* Bigger search bar */}
           <div className="relative ml-4">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -66,7 +66,6 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Right actions */}
         <div className="hidden md:flex items-center gap-2 flex-shrink-0">
           <a
             href="https://github.com/pie-1/DeploySarthi"
@@ -104,7 +103,6 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Mobile toggle */}
         <button
           className="md:hidden p-2 hover:bg-gray-50 rounded-lg transition-colors"
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -113,7 +111,6 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden bg-white border-t border-gray-200 px-6 py-4 space-y-1">
           {navLinks.map((link) => (

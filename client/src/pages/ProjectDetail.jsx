@@ -8,6 +8,7 @@ import { FaGithub } from 'react-icons/fa';
 import { projectService } from '../services/projectService';
 import CommitList from '../components/dashboard/CommitList';
 import VercelDeployments from '../components/projects/VercelDeployments';
+import DeployToVercelButton from '../components/projects/DeployToVercelButton';
 
 const ProjectDetail = () => {
   const { id } = useParams();
@@ -16,18 +17,33 @@ const ProjectDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const fetchProject = async () => {
+    try {
+      const res = await projectService.getById(id);
+      setData(res.data);
+    } catch (err) {
+      setError('Project not found');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await projectService.getById(id);
-        setData(res.data);
-      } catch (err) {
-        setError('Project not found');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchProject();
   }, [id]);
+
+  const handleDeployed = (deployResult) => {
+    // Update project locally with new Vercel info
+    setData((prev) => ({
+      ...prev,
+      project: {
+        ...prev.project,
+        vercelProjectId: deployResult.vercelProjectId,
+        vercelProjectName: deployResult.vercelProjectName,
+        vercelUrl: deployResult.vercelUrl,
+      },
+    }));
+  };
 
   if (loading) {
     return (
@@ -100,6 +116,7 @@ const ProjectDetail = () => {
             </div>
           </div>
 
+          {/* GitHub link */}
           {project.githubRepo && (
             <div className="pt-5 border-t border-gray-100">
               <div className="flex items-center gap-3">
@@ -137,6 +154,45 @@ const ProjectDetail = () => {
               </div>
             </div>
           )}
+
+          {/* Vercel link OR auto-deploy button */}
+          <div className="pt-5 border-t border-gray-100 mt-5">
+            {project.vercelProjectId ? (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center">
+                  <span className="text-white font-bold text-base">▲</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`https://${project.vercelUrl || project.vercelProjectName + '.vercel.app'}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-gray-900 hover:text-indigo-600 flex items-center gap-1"
+                    >
+                      {project.vercelUrl || `${project.vercelProjectName}.vercel.app`}
+                      <ExternalLink size={11} />
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <span>Vercel project: {project.vercelProjectName}</span>
+                  </div>
+                </div>
+              </div>
+            ) : project.githubRepo ? (
+              <div>
+                <p className="text-xs text-gray-500 mb-3">
+                  Deploy this repository to Vercel to enable deployment monitoring.
+                </p>
+                <DeployToVercelButton
+                  projectName={project.name}
+                  gitRepo={project.githubRepo}
+                  framework={project.githubLanguage?.toLowerCase()}
+                  onDeployed={handleDeployed}
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {/* Real Commits */}
@@ -145,6 +201,8 @@ const ProjectDetail = () => {
             <CommitList repoFullName={project.githubRepo} limit={10} />
           </div>
         )}
+
+        {/* Vercel Deployments */}
         {project.vercelProjectId && (
           <div className="mb-6">
             <VercelDeployments vercelProjectId={project.vercelProjectId} />

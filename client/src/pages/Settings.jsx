@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FaGithub } from 'react-icons/fa';
-import { CheckCircle2, AlertCircle, LinkIcon, Unlink } from 'lucide-react';
+import { CheckCircle2, AlertCircle, LinkIcon, Unlink, Mail, Shield } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 
@@ -10,14 +10,30 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const Settings = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [status, setStatus] = useState(null);
+  const [githubStatus, setGithubStatus] = useState(null);
+  const [vercelStatus, setVercelStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState(null);
 
-  const fetchStatus = async () => {
+  useEffect(() => {
+    const github = searchParams.get('github');
+    if (github === 'success') {
+      setBanner({ type: 'success', text: 'GitHub connected successfully' });
+      setSearchParams({}, { replace: true });
+    } else if (github === 'error') {
+      setBanner({ type: 'error', text: 'Failed to connect GitHub' });
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const fetchStatuses = async () => {
     try {
-      const res = await api.get('/github/status');
-      setStatus(res.data.data);
+      const [ghRes, vcRes] = await Promise.all([
+        api.get('/github/status'),
+        api.get('/vercel/status'),
+      ]);
+      setGithubStatus(ghRes.data.data);
+      setVercelStatus(vcRes.data.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -26,40 +42,19 @@ const Settings = () => {
   };
 
   useEffect(() => {
-    const github = searchParams.get('github');
-    if (github === 'success') {
-      setBanner({ type: 'success', text: 'GitHub connected successfully!' });
-      setSearchParams({}, { replace: true });
-    } else if (github === 'error') {
-      setBanner({ type: 'error', text: 'Failed to connect GitHub. Please try again.' });
-      setSearchParams({}, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
-
-  useEffect(() => {
-    fetchStatus();
+    fetchStatuses();
   }, []);
 
-  const handleConnect = () => {
-    if (!user?._id) {
-      alert('Please log in again');
-      return;
-    }
-    // Redirect to OAuth start with userId
-    const url = `${API_BASE}/github/oauth/start?userId=${user._id}`;
-    console.log('Redirecting to:', url);
-    window.location.href = url;
+  const handleGithubConnect = () => {
+    if (!user?._id) return alert('Please log in again');
+    window.location.href = `${API_BASE}/github/oauth/start?userId=${user._id}`;
   };
 
-  const handleDisconnect = async () => {
-    if (!confirm('Disconnect GitHub? You will lose access to your repos.')) return;
-    try {
-      await api.post('/github/disconnect');
-      setBanner({ type: 'success', text: 'GitHub disconnected' });
-      fetchStatus();
-    } catch (err) {
-      setBanner({ type: 'error', text: 'Failed to disconnect' });
-    }
+  const handleGithubDisconnect = async () => {
+    if (!confirm('Disconnect GitHub?')) return;
+    await api.post('/github/disconnect');
+    fetchStatuses();
+    setBanner({ type: 'success', text: 'GitHub disconnected' });
   };
 
   return (
@@ -89,87 +84,136 @@ const Settings = () => {
           </div>
         )}
 
-        {/* GitHub Integration Card */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
-                <FaGithub size={20} className="text-white" />
+        {/* Account */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
+          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">
+            Account
+          </h2>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm text-gray-600 flex items-center gap-2">
+                <Shield size={14} /> Name
+              </span>
+              <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-t border-gray-100">
+              <span className="text-sm text-gray-600 flex items-center gap-2">
+                <Mail size={14} /> Email
+              </span>
+              <span className="text-sm font-medium text-gray-900">{user?.email}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* GitHub */}
+        {!loading && (
+          <div className="mb-6">
+            <div className="bg-white border border-gray-200 rounded-2xl p-6">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
+                    <FaGithub size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">GitHub Integration</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Read repositories, commits, and file changes
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                    githubStatus?.mode === 'oauth'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : githubStatus?.mode === 'pat'
+                      ? 'bg-amber-50 text-amber-700'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {githubStatus?.connected ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                  {githubStatus?.mode === 'oauth' ? 'Connected' : githubStatus?.mode === 'pat' ? 'Using server token' : 'Not connected'}
+                </span>
               </div>
-              <div>
-                <h2 className="text-base font-bold text-gray-900">GitHub Integration</h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Connect your GitHub account to link repositories
-                </p>
+
+              {githubStatus?.mode === 'oauth' && githubStatus?.login && (
+                <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl mb-4">
+                  {githubStatus.avatar && (
+                    <img
+                      src={githubStatus.avatar}
+                      alt={githubStatus.login}
+                      className="w-9 h-9 rounded-full border border-emerald-200"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-emerald-900">@{githubStatus.login}</p>
+                    <p className="text-xs text-emerald-700">Connected via OAuth</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                {githubStatus?.mode !== 'oauth' ? (
+                  <button
+                    onClick={handleGithubConnect}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white
+                      rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
+                  >
+                    <LinkIcon size={14} />
+                    Connect GitHub
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleGithubDisconnect}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white
+                      rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
+                  >
+                    <Unlink size={14} />
+                    Disconnect
+                  </button>
+                )}
               </div>
             </div>
-            {!loading && (
+          </div>
+        )}
+
+        {/* Vercel - Read-only (token based) */}
+        {!loading && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-6">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-black flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-lg">▲</span>
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Vercel Integration</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Deployment monitoring and auto-deploy
+                  </p>
+                </div>
+              </div>
               <span
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                  status?.mode === 'oauth'
+                  vercelStatus?.connected
                     ? 'bg-emerald-50 text-emerald-700'
-                    : status?.mode === 'pat'
-                    ? 'bg-amber-50 text-amber-700'
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
-                {status?.connected ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                {status?.mode === 'oauth'
-                  ? 'Connected'
-                  : status?.mode === 'pat'
-                  ? 'Using server token'
-                  : 'Not connected'}
+                {vercelStatus?.connected ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                {vercelStatus?.connected ? 'Connected' : 'Not connected'}
               </span>
-            )}
-          </div>
+            </div>
 
-          {status?.mode === 'oauth' && (
-            <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl mb-4">
-              {status.avatar && (
-                <img
-                  src={status.avatar}
-                  alt={status.login}
-                  className="w-9 h-9 rounded-full border border-emerald-200"
-                />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-emerald-900">@{status.login}</p>
-                <p className="text-xs text-emerald-700">Connected via OAuth</p>
+            {vercelStatus?.connected && (
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                <p className="text-xs text-amber-800">
+                  <strong>Server-configured token.</strong> All projects and deployments
+                  are read using a server-side token. Per-user OAuth is documented as
+                  future work.
+                </p>
               </div>
-            </div>
-          )}
-
-          {status?.mode === 'pat' && (
-            <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl mb-4">
-              <p className="text-xs text-amber-800">
-                Currently using a server-configured token. Connect your own GitHub account
-                for per-user isolation.
-              </p>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            {status?.mode !== 'oauth' ? (
-              <button
-                onClick={handleConnect}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white
-                  rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
-              >
-                <LinkIcon size={14} />
-                Connect GitHub
-              </button>
-            ) : (
-              <button
-                onClick={handleDisconnect}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white
-                  rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
-              >
-                <Unlink size={14} />
-                Disconnect
-              </button>
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
