@@ -19,37 +19,12 @@
 
 ---
 
-## 🏗️ Architecture
-┌─────────────────────────────────────────────────────────┐
-│ Frontend (React + Vite) │
-│ Dashboard · Deploy · Incidents · AI Investigation │
-└─────────────────────────────────────────────────────────┘
-↓ HTTP / WebSocket
-┌─────────────────────────────────────────────────────────┐
-│ Backend (Node.js + Express) │
-│ Auth · Projects · Incidents · GitHub · Vercel Proxy │
-└─────────────────────────────────────────────────────────┘
-↓ ↓
-┌─────────────────────────┐ ┌──────────────────────────┐
-│ Python AI Service │ │ MongoDB │
-│ FastAPI · Scikit-learn│ │ Users · Projects │
-│ Isolation Forest │ │ Incidents · Comments │
-│ Groq LLM │ │ │
-└─────────────────────────┘ └──────────────────────────┘
-
-text
-
----
-
 ## 📁 Project Structure
 deploySarthi/
 ├── client/ # React frontend
 ├── server/ # Node.js backend
 ├── python/ # Python AI service
 ├── README.md # This file
-└── LICENSE
-
-text
 
 ---
 
