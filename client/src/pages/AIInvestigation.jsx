@@ -74,12 +74,22 @@ const AIInvestigation = () => {
 
     try {
       const res = await aiService.chat({
+        // CRITICAL: pass incidentId so backend can resolve projectId + build context
+        incidentId: selectedIncident._id,
+        projectId:
+          typeof selectedIncident.project === 'object'
+            ? selectedIncident.project?._id
+            : selectedIncident.project,
+
+        // Incident details
         title: selectedIncident.title,
         severity: selectedIncident.severity,
         startedAt: selectedIncident.startedAt,
         symptoms: selectedIncident.symptoms || [],
         timeline: selectedIncident.timeline || [],
         relatedDeployment: selectedIncident.relatedDeployment || {},
+
+        // User's question
         userQuestion: question,
       });
 
@@ -142,9 +152,8 @@ const AIInvestigation = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left panel */}
+          {/* Left: Incidents + Suggestions */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Incidents */}
             <div className="bg-white border border-gray-200 rounded-2xl p-5">
               <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
                 Active Incidents
@@ -178,7 +187,6 @@ const AIInvestigation = () => {
               )}
             </div>
 
-            {/* Suggestions */}
             <div className="bg-white border border-gray-200 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles size={14} className="text-indigo-600" />
@@ -194,7 +202,7 @@ const AIInvestigation = () => {
             </div>
           </div>
 
-          {/* Chat panel */}
+          {/* Right: Chat */}
           <div className="lg:col-span-2">
             <div className="bg-white border border-gray-200 rounded-2xl flex flex-col h-[calc(100vh-12rem)]">
               <div className="flex-1 overflow-y-auto p-6 space-y-6">

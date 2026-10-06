@@ -18,7 +18,7 @@ const PublicProjectCard = ({ project, index = 0 }) => {
           hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-500/5 transition-all h-full flex flex-col"
       >
         {/* Preview area */}
-        <Link to={`/gallery/${project._id}`} className="block">
+        <Link to={`/projects/${project._id}/view`} className="block">
           <div className="aspect-video bg-gradient-to-br from-indigo-50 to-violet-50
             flex items-center justify-center relative overflow-hidden">
             {vercelUrl ? (
@@ -39,7 +39,7 @@ const PublicProjectCard = ({ project, index = 0 }) => {
 
         {/* Content */}
         <div className="p-4 flex-1 flex flex-col">
-          <Link to={`/gallery/${project._id}`} className="block mb-2">
+          <Link to={`/projects/${project._id}/view`} className="block mb-2">
             <h3 className="font-bold text-gray-900 line-clamp-1 hover:text-indigo-600 transition-colors">
               {project.name}
             </h3>

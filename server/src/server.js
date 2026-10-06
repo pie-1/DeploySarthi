@@ -31,6 +31,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/incidents', require('./routes/incidents'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/users', require('./routes/users'));
 app.use('/api/github', require('./routes/github'));  
 app.use('/api/vercel', require('./routes/vercel'));
 

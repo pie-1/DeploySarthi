@@ -18,7 +18,7 @@ const Navbar = () => {
   }, []);
 
   const publicLinks = [
-    { label: 'Gallery', to: '/gallery' },
+    { label: 'Projects', to: '/projects' },
     { label: 'Docs', to: '/docs' },
   ];
 
@@ -30,7 +30,7 @@ const Navbar = () => {
     { label: 'AI Investigation', to: '/ai' },
   ];
 
-  const navLinks = user ? [...privateLinks, ...publicLinks] : publicLinks;
+  const navLinks = user ? privateLinks : publicLinks;
 
   return (
     <nav className={`fixed top-0 w-full z-40 transition-all duration-300 ${
@@ -57,10 +57,10 @@ const Navbar = () => {
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search projects, incidents..."
-              className="w-80 pl-10 pr-4 py-2.5 text-[13px] font-medium bg-gray-50
+              placeholder="Search projects..."
+              className="w-72 pl-10 pr-4 py-2.5 text-[13px] font-medium bg-gray-50
                 border border-gray-200 rounded-lg focus:outline-none focus:ring-2
-                focus:ring-indigo-500 focus:border-transparent focus:w-96
+                focus:ring-indigo-500 focus:border-transparent focus:w-80
                 focus:bg-white transition-all placeholder:text-gray-400 placeholder:font-normal"
             />
           </div>
@@ -97,7 +97,7 @@ const Navbar = () => {
                   rounded-lg hover:bg-indigo-700 transition-colors shadow-sm
                   shadow-indigo-500/20"
               >
-                Sign up free
+                Sign up
               </Link>
             </>
           )}
@@ -162,7 +162,7 @@ const Navbar = () => {
                     bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Sign up free
+                  Sign up
                 </Link>
               </>
             )}

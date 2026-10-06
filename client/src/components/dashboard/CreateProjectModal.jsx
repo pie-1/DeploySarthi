@@ -5,6 +5,7 @@ import { FaGithub } from 'react-icons/fa';
 import { projectService } from '../../services/projectService';
 import GitHubRepoPicker from '../projects/GitHubRepoPicker';
 import VercelProjectPicker from '../projects/VercelProjectPicker';
+import { CATEGORIES } from '../../utils/categories';
 
 const CreateProjectModal = ({ open, onClose, onCreated }) => {
   const [step, setStep] = useState(1);
@@ -14,6 +15,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
   const [description, setDescription] = useState('');
   const [environment, setEnvironment] = useState('development');
   const [deploymentTarget, setDeploymentTarget] = useState('vercel');
+  const [category, setCategory] = useState('web_app');
 
   // Step 2
   const [selectedRepo, setSelectedRepo] = useState(null);
@@ -30,6 +32,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
     setDescription('');
     setEnvironment('development');
     setDeploymentTarget('vercel');
+    setCategory('web_app');
     setSelectedRepo(null);
     setSelectedVercelProject(null);
     setError('');
@@ -63,6 +66,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
         description,
         environment,
         deploymentTarget,
+        category,
       };
 
       if (selectedRepo) {
@@ -187,6 +191,24 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                         className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-lg
                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Category
+                      </label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-lg
+                          focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        {CATEGORIES.filter((c) => c.value !== 'all').map((c) => (
+                          <option key={c.value} value={c.value}>
+                            {c.emoji} {c.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">

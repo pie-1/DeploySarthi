@@ -48,6 +48,8 @@ class IncidentPayload(BaseModel):
     symptoms: list = []
     timeline: list = []
     relatedDeployment: dict = {}
+    context: dict = {}
+    userQuestion: str = ""
 
 
 class PromptContextPayload(BaseModel):

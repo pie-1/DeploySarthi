@@ -3,7 +3,8 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+const generateToken = (id) =>
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
 const formatUser = (user, token) => ({
   _id: user._id,
@@ -16,7 +17,7 @@ const formatUser = (user, token) => ({
 });
 
 // ============ REGISTER ============
-router.post('/register', async (req, res, next) => {
+router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
@@ -24,6 +25,13 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Name, email, and password are required',
+      });
+    }
+
+    if (phone && phone.replace(/\D/g, '').length !== 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number must be exactly 10 digits',
       });
     }
 
@@ -47,12 +55,16 @@ router.post('/register', async (req, res, next) => {
       data: formatUser(user, generateToken(user._id)),
     });
   } catch (error) {
-    next(error);  // ← Pass to error handler
+    console.error('[register] error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Registration failed',
+    });
   }
 });
 
 // ============ LOGIN ============
-router.post('/login', async (req, res, next) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -84,12 +96,16 @@ router.post('/login', async (req, res, next) => {
       data: formatUser(user, generateToken(user._id)),
     });
   } catch (error) {
-    next(error);
+    console.error('[login] error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Login failed',
+    });
   }
 });
 
 // ============ GET CURRENT USER ============
-router.get('/me', async (req, res, next) => {
+router.get('/me', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -104,7 +120,7 @@ router.get('/me', async (req, res, next) => {
 
     res.json({ success: true, data: user });
   } catch (error) {
-    next(error);
+    res.status(401).json({ success: false, message: 'Invalid token' });
   }
 });
 

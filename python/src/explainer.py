@@ -14,13 +14,11 @@ logger = logging.getLogger(__name__)
 _request_times = []
 MAX_REQUESTS_PER_MINUTE = 25
 
-# Suggestions cache
 _suggestions_cache = {}
-SUGGESTIONS_CACHE_TTL = 60  # seconds
+SUGGESTIONS_CACHE_TTL = 60
 
 
 def _check_rate_limit():
-    """Ensure we stay under Groq's rate limit."""
     global _request_times
     now = time.time()
     _request_times = [t for t in _request_times if now - t < 60]
@@ -67,40 +65,69 @@ def _offline_fallback(incident: dict) -> dict:
 
 
 def _build_context(incident: dict) -> str:
-    lines = [
-        f"Incident: {incident.get('title', 'Unknown')}",
-        f"Severity: {incident.get('severity', 'unknown')}",
-        f"Started: {incident.get('startedAt', 'unknown')}",
-    ]
+    """Build rich context for the Investigator LLM."""
+    lines = []
+
+    lines.append("# Incident")
+    lines.append(f"Title: {incident.get('title', 'Unknown')}")
+    lines.append(f"Severity: {incident.get('severity', 'unknown')}")
+    lines.append(f"Started: {incident.get('startedAt', 'unknown')}")
+
+    ctx = incident.get("context", {})
+    project = ctx.get("project", {})
+    if project:
+        lines.append("\n# Project")
+        lines.append(f"Name: {project.get('name', 'N/A')}")
+        lines.append(f"Environment: {project.get('environment', 'N/A')}")
+        lines.append(f"Deployment target: {project.get('deploymentTarget', 'N/A')}")
+        if project.get("githubRepo"):
+            lines.append(f"GitHub: {project['githubRepo']}")
+        if project.get("vercelProjectName"):
+            lines.append(f"Vercel: {project['vercelProjectName']}")
 
     symptoms = incident.get("symptoms", [])
     if symptoms:
-        lines.append("\nSymptoms:")
-        for s in symptoms[:8]:
+        lines.append("\n# Symptoms")
+        for s in symptoms:
             lines.append(
-                f"  - {s.get('service', '?')} {s.get('metric', '?')}: "
+                f"- {s.get('service', '?')} {s.get('metric', '?')}: "
                 f"{s.get('value', '?')} (baseline {s.get('baseline', '?')}, "
                 f"{s.get('changePercent', 0):+.1f}%)"
             )
 
     timeline = incident.get("timeline", [])
     if timeline:
-        lines.append("\nTimeline:")
-        for event in timeline[:10]:
-            lines.append(f"  - {event.get('timestamp')} {event.get('service')}: {event.get('event')}")
+        lines.append("\n# Incident Timeline")
+        for t in timeline[:10]:
+            lines.append(f"- {t.get('timestamp')} [{t.get('service')}] {t.get('event')}")
 
-    deployment = incident.get("relatedDeployment", {})
-    if deployment and deployment.get("commitId"):
-        lines.append("\nRecent deployment:")
-        lines.append(f"  Commit: {deployment.get('commitId', 'N/A')}")
-        lines.append(f"  Branch: {deployment.get('branch', 'N/A')}")
-        files = deployment.get("filesChanged", [])
-        if files:
-            lines.append(f"  Files changed: {', '.join(files[:5])}")
+    deployments = ctx.get("recentDeployments", [])
+    if deployments:
+        lines.append("\n# Recent Vercel Deployments")
+        for d in deployments:
+            lines.append(
+                f"- {d.get('createdAt')} · {d.get('state')} ({d.get('target')}) · "
+                f"commit {d.get('commitSha')}: \"{d.get('commitMessage')}\" by {d.get('commitAuthor')}"
+            )
+    else:
+        lines.append("\n# Recent Deployments")
+        lines.append("- None available")
+
+    commits = ctx.get("recentCommits", [])
+    if commits:
+        lines.append("\n# Recent GitHub Commits")
+        for c in commits:
+            lines.append(
+                f"- {c.get('date')} · {c.get('sha')} by {c.get('author')}: \"{c.get('message')}\""
+            )
+    else:
+        lines.append("\n# Recent Commits")
+        lines.append("- None available")
 
     user_q = incident.get("userQuestion", "")
     if user_q:
-        lines.append(f"\nUser's question: {user_q}")
+        lines.append("\n# User Question")
+        lines.append(user_q)
 
     return "\n".join(lines)
 
@@ -114,7 +141,7 @@ def explain_incident(incident: dict) -> dict:
     _check_rate_limit()
 
     try:
-        client = Groq(api_key=GROQ_API_KEY, max_retries=1, timeout=15.0)
+        client = Groq(api_key=GROQ_API_KEY, max_retries=1, timeout=20.0)
         context = _build_context(incident)
 
         response = client.chat.completions.create(

@@ -6,7 +6,7 @@ import Logo from '../components/Logo';
 
 const authImages = [
   { src: '/images/auth1.webp', caption: 'Deploy in seconds, not hours.' },
-  { src: '/images/auth4.webp', caption: 'AI explains what broke.' },
+  { src: '/images/auth5.avif', caption: 'AI explains what broke.' },
   { src: '/images/auth3.webp', caption: 'Sleep better at night.' },
 ];
 

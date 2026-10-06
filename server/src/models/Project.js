@@ -4,6 +4,24 @@ const projectSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 100 },
   description: { type: String, default: '', maxlength: 500 },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  category: {
+  type: String,
+  enum: [
+    'web_app',
+    'api',
+    'mobile',
+    'ai_ml',
+    'devops',
+    'healthcare',
+    'environment',
+    'education',
+    'startup',
+    'ecommerce',
+    'other',
+  ],
+  default: 'other',
+  index: true,
+},
 
   // GitHub
   githubRepo: { type: String, default: '' },

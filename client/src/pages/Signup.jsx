@@ -20,22 +20,18 @@ const Signup = () => {
     if (user) navigate('/', { replace: true });
   }, [user, navigate]);
 
-const handlePhoneChange = (e) => {
-    const value = e.target.value;
-    const filtered = value.replace(/[^\d+\s-]/g, '');
-    setPhone(filtered);
+  const handlePhoneChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setPhone(digits);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    if (phone) {
-      const digitsOnly = phone.replace(/\D/g, '');
-      if (digitsOnly.length < 7 || digitsOnly.length > 15) {
-        setError('Please enter a valid phone number (7-15 digits)');
-        return;
-      }
+
+    if (phone && phone.length !== 10) {
+      setError('Phone number must be exactly 10 digits');
+      return;
     }
 
     if (password.length < 6) {
@@ -61,9 +57,9 @@ const handlePhoneChange = (e) => {
 
       <div className="w-full max-w-md relative">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-8">
-          <div className="flex justify-center mb-6">
+          <Link to="/" className="flex justify-center mb-6">
             <Logo size={40} />
-          </div>
+          </Link>
 
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
@@ -118,24 +114,23 @@ const handlePhoneChange = (e) => {
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                WhatsApp number
-                <span className="text-gray-400 font-normal ml-1">(optional)</span>
+                Phone number
               </label>
               <input
                 type="tel"
                 value={phone}
                 onChange={handlePhoneChange}
-                placeholder="+977 98XXXXXXXX"
+                placeholder="9812345678"
                 autoComplete="off"
                 name="phone-signup"
-                inputMode="tel"
-                maxLength={20}
+                inputMode="numeric"
+                maxLength={10}
                 className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-lg
                   focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
                   placeholder:text-gray-400"
               />
               <p className="text-xs text-gray-500 mt-1.5">
-                Used for critical incident alerts (digits only)
+                10-digit number (e.g., 9812345678)
               </p>
             </div>
 

@@ -33,7 +33,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const {
-      name, description,
+      name, description, category,
       githubRepo, githubRepoId, githubDefaultBranch,
       githubLanguage, githubStars, githubIsPrivate,
       vercelProjectId, vercelProjectName, vercelUrl, vercelFramework,
@@ -47,6 +47,7 @@ router.post('/', async (req, res) => {
     const project = await Project.create({
       name,
       description: description || '',
+      category: category || 'other',
       githubRepo: githubRepo || '',
       githubRepoId: githubRepoId || undefined,
       githubDefaultBranch: githubDefaultBranch || 'main',

@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity, Server, AlertTriangle, DollarSign, Plus,
-  ArrowUpRight, CheckCircle2,
+  ArrowUpRight, CheckCircle2, Rocket, GitBranch,
 } from 'lucide-react';
-import { FaGithub } from 'react-icons/fa';
 import { useAuth } from '../hooks/useAuth';
 import { useLiveData } from '../context/LiveDataContext';
 import { projectService, incidentService, aiService } from '../services/projectService';
+import api from '../services/api';
 import IncidentFeed from '../components/dashboard/IncidentFeed';
 import CreateProjectModal from '../components/dashboard/CreateProjectModal';
-import { LatencyChart, CpuChart } from '../components/dashboard/MetricChart';
 import LiveMetricsPanel from '../components/dashboard/LiveMetricsPanel';
 import ConnectionStatus from '../components/dashboard/ConnectionStatus';
+import { LatencyChart, CpuChart } from '../components/dashboard/MetricChart';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -20,28 +20,36 @@ const Dashboard = () => {
   const [projects, setProjects] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [aiStatus, setAiStatus] = useState(null);
+  const [vercelStatus, setVercelStatus] = useState(null);
   const [githubStatus, setGithubStatus] = useState(null);
+  const [deployCount, setDeployCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [projectsRes, incidentsRes, aiRes, ghRes] = await Promise.allSettled([
+      const results = await Promise.allSettled([
         projectService.getAll(),
         incidentService.getAll(),
         aiService.health(),
-        fetch('http://localhost:5000/api/github/status', {
-          headers: {
-            Authorization: `Bearer ${JSON.parse(localStorage.getItem('deploysarthi_user'))?.token}`,
-          },
-        }).then((r) => r.json()),
+        api.get('/github/status'),
+        api.get('/vercel/status'),
+        api.get('/vercel/projects?limit=50'),
       ]);
 
-      if (projectsRes.status === 'fulfilled') setProjects(projectsRes.value.data || []);
-      if (incidentsRes.status === 'fulfilled') setIncidents(incidentsRes.value.data || []);
-      if (aiRes.status === 'fulfilled') setAiStatus(aiRes.value.data);
-      if (ghRes.status === 'fulfilled') setGithubStatus(ghRes.value.data);
+      if (results[0].status === 'fulfilled') setProjects(results[0].value.data || []);
+      if (results[1].status === 'fulfilled') setIncidents(results[1].value.data || []);
+      if (results[2].status === 'fulfilled') setAiStatus(results[2].value.data);
+      if (results[3].status === 'fulfilled') setGithubStatus(results[3].value.data.data);
+      if (results[4].status === 'fulfilled') setVercelStatus(results[4].value.data.data);
+
+      if (results[5].status === 'fulfilled') {
+        const vp = results[5].value.data.data || [];
+        setDeployCount(vp.length);
+      }
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -57,17 +65,17 @@ const Dashboard = () => {
   ];
 
   const activeIncidents = allIncidents.filter((i) => i.status === 'open').length;
-  const totalCost = projects.reduce((sum, p) => sum + (p.costToday || 0), 0);
   const healthScore = Math.max(0, 100 - activeIncidents * 15);
-
   const primaryProject = projects[0];
+
   const isGithubConnected = githubStatus?.connected === true;
   const isAiOnline = aiStatus?.model_loaded === true;
+  const isVercelConnected = vercelStatus?.connected === true;
 
   return (
     <div className="pb-16 px-6">
       <div className="max-w-7xl mx-auto pt-8">
-        {/* ============ HEADER ============ */}
+        {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
             <div className="flex items-center gap-3">
@@ -92,7 +100,7 @@ const Dashboard = () => {
           </button>
         </div>
 
-        {/* ============ HERO STATS ============ */}
+        {/* Hero stats */}
         <div className="bg-gradient-to-br from-indigo-50 via-white to-violet-50
           border border-indigo-100 rounded-2xl p-6 mb-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -103,7 +111,11 @@ const Dashboard = () => {
               <span className="text-3xl font-bold text-gray-900">{healthScore}</span>
               <span className="text-sm text-gray-500">/ 100</span>
               <p className="text-xs text-gray-500 mt-1">
-                {healthScore >= 80 ? 'All systems healthy' : 'Attention needed'}
+                {projects.length === 0
+                  ? 'No projects yet'
+                  : activeIncidents === 0
+                  ? 'All systems healthy'
+                  : `${activeIncidents} need attention`}
               </p>
             </div>
             <div>
@@ -123,17 +135,21 @@ const Dashboard = () => {
                 </span>
                 {activeIncidents === 0 && <CheckCircle2 size={20} className="text-emerald-500" />}
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {activeIncidents === 0 ? 'All clear' : 'Needs attention'}
+              </p>
             </div>
             <div>
               <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-                Cost Today
+                Total Deploys
               </p>
-              <span className="text-3xl font-bold text-gray-900">${totalCost.toFixed(2)}</span>
+              <span className="text-3xl font-bold text-gray-900">{deployCount}</span>
+              <p className="text-xs text-gray-500 mt-1">Across Vercel projects</p>
             </div>
           </div>
         </div>
 
-        {/* ============ INTEGRATIONS ============ */}
+        {/* Integrations */}
         <div className="mb-8">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Integrations</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -142,7 +158,9 @@ const Dashboard = () => {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center">
-                    <FaGithub size={16} className="text-white" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                    </svg>
                   </div>
                   <span className="font-semibold text-gray-900">GitHub</span>
                 </div>
@@ -157,9 +175,7 @@ const Dashboard = () => {
               </div>
               <p className="text-xs text-gray-500">Repos, commits, deployment history</p>
               {isGithubConnected && githubStatus?.login && (
-                <p className="text-xs text-emerald-700 mt-2 font-medium">
-                  @{githubStatus.login}
-                </p>
+                <p className="text-xs text-emerald-700 mt-2 font-medium">@{githubStatus.login}</p>
               )}
             </div>
 
@@ -184,38 +200,50 @@ const Dashboard = () => {
               <p className="text-xs text-gray-500">Anomaly detection + LLM investigation</p>
             </div>
 
-            {/* Vercel — Coming Soon */}
-            <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-5 opacity-70">
+            {/* Vercel */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-                    <Server size={16} className="text-gray-400" />
+                  <div className="w-9 h-9 rounded-lg bg-black flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">▲</span>
                   </div>
-                  <span className="font-semibold text-gray-500">Vercel</span>
+                  <span className="font-semibold text-gray-900">Vercel</span>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 text-gray-500 text-[10px] font-bold">
-                  SOON
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold ${
+                  isVercelConnected
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isVercelConnected ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                  {isVercelConnected ? 'CONNECTED' : 'NOT CONNECTED'}
                 </span>
               </div>
-              <p className="text-xs text-gray-400">Deployments + build logs</p>
+              <p className="text-xs text-gray-500">Deployments + build logs</p>
+              {isVercelConnected && (
+                <p className="text-xs text-emerald-700 mt-2 font-medium">
+                  {deployCount} project{deployCount !== 1 ? 's' : ''}
+                </p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* ============ LIVE METRICS ============ */}
+        {/* Live Metrics (if projects exist) */}
         {primaryProject && (
           <div className="mb-8">
             <LiveMetricsPanel projectId={primaryProject._id} />
           </div>
         )}
 
-        {/* ============ CHARTS ============ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <LatencyChart />
-          <CpuChart />
-        </div>
+        {/* Charts — only if we have enough data */}
+        {primaryProject && !loading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <LatencyChart />
+            <CpuChart />
+          </div>
+        ) : null}
 
-        {/* ============ PROJECTS + INCIDENTS ============ */}
+        {/* Bottom: Projects + Incidents */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="bg-white border border-gray-200 rounded-2xl p-6">
@@ -256,7 +284,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {projects.map((p) => (
+                  {projects.slice(0, 5).map((p) => (
                     <Link
                       key={p._id}
                       to={`/projects/${p._id}`}
@@ -277,7 +305,10 @@ const Dashboard = () => {
                           </p>
                         </div>
                       </div>
-                      <ArrowUpRight size={14} className="text-gray-300 group-hover:text-indigo-600" />
+                      <ArrowUpRight
+                        size={14}
+                        className="text-gray-300 group-hover:text-indigo-600"
+                      />
                     </Link>
                   ))}
                 </div>

@@ -3,6 +3,7 @@ const router = express.Router();
 const Incident = require('../models/Incident');
 const Project = require('../models/Project');
 const aiService = require('../services/aiService');
+const { buildIncidentContext } = require('../services/contextBuilder');
 const { broadcast } = require('../services/wsServer');
 const { protect } = require('../middleware/auth');
 
@@ -68,9 +69,17 @@ router.post('/', async (req, res) => {
       aiAnalysis: incident.aiAnalysis,
     });
 
-    // AI investigation async
+    // AI investigation (async) with rich context
     (async () => {
       try {
+        console.log('[incident] Async investigation started:', incident._id.toString());
+
+        // Build context (deployments + commits)
+        const context = await buildIncidentContext(project, incident);
+        console.log(
+          `[context] Fetched ${context.recentDeployments.length} deployments, ${context.recentCommits.length} commits`
+        );
+
         const aiResult = await aiService.investigate({
           title: incident.title,
           severity: incident.severity,
@@ -78,7 +87,9 @@ router.post('/', async (req, res) => {
           symptoms: incident.symptoms,
           timeline: incident.timeline,
           relatedDeployment: incident.relatedDeployment,
+          context,
         });
+        console.log('[incident] AI investigation done');
 
         incident.aiAnalysis = { ...aiResult.analysis, generatedAt: new Date() };
         incident.timeline.push({
@@ -87,6 +98,7 @@ router.post('/', async (req, res) => {
           event: 'AI investigation completed',
         });
         await incident.save();
+        console.log('[incident] AI analysis saved');
 
         broadcast('incident:analyzed', {
           _id: incident._id,

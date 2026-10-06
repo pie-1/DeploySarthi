@@ -1,8 +1,8 @@
 import api from './api';
 
 export const aiService = {
-  chat: async (incident) => {
-    const res = await api.post('/ai/investigate', incident);
+  chat: async (payload) => {
+    const res = await api.post('/ai/investigate', payload);
     return res.data;
   },
 

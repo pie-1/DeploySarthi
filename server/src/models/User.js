@@ -9,6 +9,12 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   avatar: { type: String, default: '' },
 
+  notifications: {
+    whatsappEnabled: { type: Boolean, default: true },
+    emailEnabled: { type: Boolean, default: true },
+    criticalOnly: { type: Boolean, default: false },
+  },
+
   github: {
     connected: { type: Boolean, default: false },
     accessToken: { type: String, default: '' },
@@ -29,10 +35,9 @@ const userSchema = new mongoose.Schema({
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
 }, { timestamps: true });
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
 userSchema.methods.comparePassword = async function (candidate) {

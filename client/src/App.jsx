@@ -4,6 +4,7 @@ import { LiveDataProvider } from './context/LiveDataContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import CustomCursor from './components/CustomCursor';
 import DashboardLayout from './components/layout/DashboardLayout';
+import PublicLayout from './components/layout/PublicLayout';
 import LiveIncidentToast from './components/dashboard/LiveIncidentToast';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -17,7 +18,7 @@ import IncidentDetail from './pages/IncidentDetail';
 import Settings from './pages/Settings';
 import Deploy from './pages/Deploy';
 import AIInvestigation from './pages/AIInvestigation';
-import PublicGallery from './pages/PublicGallery';
+import Docs from './pages/Docs';
 import PublicProject from './pages/PublicProject';
 
 function App() {
@@ -32,10 +33,14 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/gallery" element={<PublicGallery />} />
-            <Route path="/gallery/:id" element={<PublicProject />} />
+            <Route path="/docs" element={
+              <PublicLayout><Docs /></PublicLayout>
+            } />
+            <Route path="/projects/:id/view" element={
+              <PublicLayout><PublicProject /></PublicLayout>
+            } />
 
-            {/* Protected — user's own projects */}
+            {/* Protected */}
             <Route path="/dashboard" element={
               <ProtectedRoute><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>
             } />

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, ExternalLink, Eye, MessageCircle, Calendar, User,
+  ArrowLeft, ExternalLink, Eye, MessageCircle, Calendar,
 } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa';
 import { publicService } from '../services/publicService';
 import LikeButton from '../components/public/LikeButton';
 import CommentSection from '../components/public/CommentSection';
+import { getCategoryEmoji, getCategoryLabel } from '../utils/categories';
 
 const PublicProject = () => {
   const { id } = useParams();
@@ -47,7 +48,7 @@ const PublicProject = () => {
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-6"
           >
             <ArrowLeft size={16} />
-            Back to Gallery
+            Back to Projects
           </Link>
           <div className="bg-white border border-gray-200 rounded-2xl p-16 text-center">
             <h2 className="text-lg font-bold text-gray-900 mb-2">{error}</h2>
@@ -60,8 +61,11 @@ const PublicProject = () => {
     );
   }
 
-  const vercelUrl = project.vercelUrl
-    || (project.vercelProjectName ? `${project.vercelProjectName}.vercel.app` : null);
+  const vercelUrl =
+    project.vercelUrl ||
+    (project.vercelProjectName ? `${project.vercelProjectName}.vercel.app` : null);
+
+  const category = project.category || 'other';
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -72,13 +76,18 @@ const PublicProject = () => {
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-6"
           >
             <ArrowLeft size={16} />
-            Back to Gallery
+            Back to Projects
           </Link>
 
           {/* Header card */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
             <div className="flex items-start justify-between gap-4 mb-5">
               <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 rounded-md text-[10px] font-bold text-indigo-600 uppercase tracking-wide">
+                    {getCategoryEmoji(category)} {getCategoryLabel(category)}
+                  </span>
+                </div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{project.name}</h1>
                 <p className="text-sm text-gray-600 leading-relaxed">
                   {project.publishedDescription || project.description || 'No description'}
@@ -154,7 +163,10 @@ const PublicProject = () => {
                   </span>
                 )}
                 {project.tags?.map((tag) => (
-                  <span key={tag} className="px-2 py-0.5 bg-indigo-50 rounded text-[10px] font-semibold text-indigo-600">
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 bg-indigo-50 rounded text-[10px] font-semibold text-indigo-600"
+                  >
                     #{tag}
                   </span>
                 ))}

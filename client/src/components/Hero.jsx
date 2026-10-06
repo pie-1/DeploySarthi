@@ -94,7 +94,7 @@ const Hero = () => {
           transition={{ duration: 0.7, delay: 0.1 }}
         >
           Connect your GitHub repo. We check if it's ready, deploy it,
-          monitor it 24/7, and explain what went wrong — in plain English.
+          monitor it 24/7,explain what went wrong and suggest prompts to fix it too.
         </motion.p>
 
         <motion.div
