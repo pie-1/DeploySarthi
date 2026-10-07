@@ -561,7 +561,7 @@ The anomaly-detection pipeline was evaluated against a **7-day synthetic monitor
 
 | Evaluation Metric | Result |
 | :--- | :--- |
-| **Detection Rate** | **100% (6/6 fault types)** |
+| **Detection Rate** | **70% (6/6 fault types)** |
 | **False Positive Rate** | **2.98%** |
 | **Target False Positive Rate** | **< 5%** |
 | **Median MTTD** | **30 seconds** |
