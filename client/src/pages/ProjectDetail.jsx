@@ -9,6 +9,7 @@ import { projectService } from '../services/projectService';
 import CommitList from '../components/dashboard/CommitList';
 import VercelDeployments from '../components/projects/VercelDeployments';
 import DeployToVercelButton from '../components/projects/DeployToVercelButton';
+import ReadinessPanel from '../components/projects/ReadinessPanel';
 
 const ProjectDetail = () => {
   const { id } = useParams();
@@ -187,13 +188,20 @@ const ProjectDetail = () => {
                 <DeployToVercelButton
                   projectName={project.name}
                   gitRepo={project.githubRepo}
-                  framework={project.githubLanguage?.toLowerCase()}
+                  framework={null}
                   onDeployed={handleDeployed}
                 />
               </div>
             ) : null}
           </div>
         </div>
+        {/* Readiness Check */}
+          <div className="mb-6">
+            <ReadinessPanel
+              projectId={project._id}
+              hasGithub={!!project.githubRepo}
+            />
+          </div>
 
         {/* Real Commits */}
         {project.githubRepo && (

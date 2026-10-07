@@ -1,30 +1,27 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, Check } from 'lucide-react';
+import { X, ChevronLeft, Check, ExternalLink, Rocket } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa';
+import { toast } from 'sonner';
 import { projectService } from '../../services/projectService';
+import api from '../../services/api';
 import GitHubRepoPicker from '../projects/GitHubRepoPicker';
 import VercelProjectPicker from '../projects/VercelProjectPicker';
 import { CATEGORIES } from '../../utils/categories';
 
 const CreateProjectModal = ({ open, onClose, onCreated }) => {
   const [step, setStep] = useState(1);
-
-  // Step 1
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [environment, setEnvironment] = useState('development');
   const [deploymentTarget, setDeploymentTarget] = useState('vercel');
   const [category, setCategory] = useState('web_app');
-
-  // Step 2
   const [selectedRepo, setSelectedRepo] = useState(null);
-
-  // Step 3
   const [selectedVercelProject, setSelectedVercelProject] = useState(null);
-
+  const [deployAfterSave, setDeployAfterSave] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [createdProject, setCreatedProject] = useState(null);
 
   const reset = () => {
     setStep(1);
@@ -35,7 +32,9 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
     setCategory('web_app');
     setSelectedRepo(null);
     setSelectedVercelProject(null);
+    setDeployAfterSave(false);
     setError('');
+    setCreatedProject(null);
   };
 
   const handleClose = () => {
@@ -86,10 +85,28 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
       }
 
       const res = await projectService.create(payload);
-      onCreated(res.data);
+      const newProject = res.data;
+      setCreatedProject(newProject);
+
+      // Notify parent — updates the list
+      onCreated(newProject);
+
+      // If user wants to auto-deploy AND has a GitHub repo
+      if (deployAfterSave && selectedRepo) {
+        // Open Vercel Deploy Button in new tab — no framework param (auto-detect)
+        const params = new URLSearchParams({
+          'repository-url': `https://github.com/${selectedRepo.fullName}`,
+          'project-name': name,
+        });
+        window.open(`https://vercel.com/new/clone?${params.toString()}`, '_blank', 'noopener');
+      }
+
+      toast.success('Project created');
       handleClose();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create project');
+      const msg = err.response?.data?.message || 'Failed to create project';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -134,7 +151,7 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                     <h2 className="text-lg font-bold text-gray-900">New Project</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Step {step} of 3 ·{' '}
-                      {step === 1 ? 'Basic info' : step === 2 ? 'GitHub repo' : 'Vercel project'}
+                      {step === 1 ? 'Basic info' : step === 2 ? 'GitHub repo' : 'Vercel + Deploy'}
                     </p>
                   </div>
                 </div>
@@ -269,25 +286,60 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                 )}
 
                 {step === 3 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-                      <span className="text-indigo-600 font-bold text-sm">▲</span>
-                      <p className="text-xs text-indigo-900">
-                        Select an existing Vercel project to link. Optional.
-                      </p>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                        <span className="text-indigo-600 font-bold text-sm">▲</span>
+                        <p className="text-xs text-indigo-900">
+                          If you already have a Vercel project, link it here. Otherwise skip — you can deploy below.
+                        </p>
+                      </div>
+
+                      <VercelProjectPicker
+                        selectedProject={selectedVercelProject}
+                        onSelect={setSelectedVercelProject}
+                      />
+
+                      {selectedVercelProject && (
+                        <div className="mt-4 flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                          <Check size={14} className="text-emerald-600" />
+                          <span className="text-xs text-emerald-900 font-medium">
+                            {selectedVercelProject.name}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    <VercelProjectPicker
-                      selectedProject={selectedVercelProject}
-                      onSelect={setSelectedVercelProject}
-                    />
+                    {/* Deploy option — only if GitHub repo selected */}
+                    {selectedRepo && (
+                      <label className="flex items-start gap-3 p-4 bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={deployAfterSave}
+                          onChange={(e) => setDeployAfterSave(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Rocket size={14} className="text-indigo-600" />
+                            <p className="text-sm font-bold text-gray-900">
+                              Deploy to Vercel after saving
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-600">
+                            Opens Vercel in a new tab. Connect your account there and Vercel
+                            will build this repo. DeploySarthi starts monitoring once it's ready.
+                          </p>
+                        </div>
+                      </label>
+                    )}
 
-                    {selectedVercelProject && (
-                      <div className="mt-4 flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <Check size={14} className="text-emerald-600" />
-                        <span className="text-xs text-emerald-900 font-medium">
-                          {selectedVercelProject.name}
-                        </span>
+                    {/* Info if no repo */}
+                    {!selectedRepo && (
+                      <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                        <p className="text-xs text-amber-800">
+                          To deploy, go back and select a GitHub repository first.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -340,24 +392,19 @@ const CreateProjectModal = ({ open, onClose, onCreated }) => {
                   )}
 
                   {step === 3 && (
-                    <>
-                      <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-200
-                          rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Skip
-                      </button>
-                      <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-lg
-                          hover:bg-indigo-700 transition-colors disabled:opacity-60"
-                      >
-                        {loading ? 'Creating...' : 'Create Project'}
-                      </button>
-                    </>
+                    <button
+                      onClick={handleSubmit}
+                      disabled={loading}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-lg
+                        hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                    >
+                      {loading ? 'Creating...' : (
+                        <>
+                          {deployAfterSave && <Rocket size={14} />}
+                          {deployAfterSave ? 'Create + Deploy' : 'Create Project'}
+                        </>
+                      )}
+                    </button>
                   )}
                 </div>
               </div>

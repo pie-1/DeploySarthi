@@ -34,6 +34,9 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/github', require('./routes/github'));  
 app.use('/api/vercel', require('./routes/vercel'));
+app.use('/api/telegram', require('./routes/telegram'));
+app.use('/api/readiness', require('./routes/readiness'));
+app.use('/api/dashboard', require('./routes/dashboard'));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', service: 'DeploySarthi API' });

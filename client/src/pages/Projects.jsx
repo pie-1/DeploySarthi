@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Server, Search, Lock, Globe } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import { projectService } from '../services/projectService';
 import { publicService } from '../services/publicService';
 import ProjectCard from '../components/projects/ProjectCard';
 import PublicProjectCard from '../components/public/PublicProjectCard';
 import CreateProjectModal from '../components/dashboard/CreateProjectModal';
+import PublishProjectModal from '../components/projects/PublishProjectModal';
 import { CATEGORIES } from '../utils/categories';
 
 const Projects = () => {
@@ -18,7 +20,7 @@ const Projects = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
-  const [publishingId, setPublishingId] = useState(null);
+  const [publishProject, setPublishProject] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,34 +51,19 @@ const Projects = () => {
       await projectService.remove(id);
       setMyProjects((prev) => prev.filter((p) => p._id !== id));
       setPublicProjects((prev) => prev.filter((p) => p._id !== id));
+      toast.success('Project deleted');
     } catch (err) {
-      alert('Failed to delete project');
+      toast.error('Failed to delete project');
     }
   };
 
-  const handleTogglePublish = async (project) => {
-    setPublishingId(project._id);
-    try {
-      const res = await projectService.updateVisibility(project._id, {
-        isPublic: !project.isPublic,
-        publishedDescription: project.description,
-      });
+  // Opens the publish modal instead of one-click toggle
+  const handleTogglePublish = (project) => {
+    setPublishProject(project);
+  };
 
-      // Update local state
-      setMyProjects((prev) =>
-        prev.map((p) =>
-          p._id === project._id ? { ...p, isPublic: res.data.isPublic } : p
-        )
-      );
-
-      // Refresh public list
-      const publicRes = await publicService.listProjects({ limit: 50 });
-      setPublicProjects(publicRes.data || []);
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update visibility');
-    } finally {
-      setPublishingId(null);
-    }
+  const handlePublished = async () => {
+    await fetchData();
   };
 
   const handleCreated = (newProject) => {
@@ -248,6 +235,13 @@ const Projects = () => {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreated={handleCreated}
+      />
+
+      <PublishProjectModal
+        open={!!publishProject}
+        onClose={() => setPublishProject(null)}
+        project={publishProject}
+        onPublished={handlePublished}
       />
     </div>
   );

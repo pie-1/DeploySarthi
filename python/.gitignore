@@ -1,37 +1,11 @@
-
-# Environment variables and secrets
-.env
-.env.*
-!.env.example
-
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environments
 venv/
 .venv/
-env/
-
-# Jupyter Notebook
-.ipynb_checkpoints/
-
-# Testing and coverage
+__pycache__/
+*.pyc
+*.pyo
+.env
+models/*.joblib
+data/faults/*.csv
+data/healthy_baseline.csv
 .pytest_cache/
-.coverage
-htmlcov/
-
-# Build files
-build/
-dist/
-*.egg-info/
-
-# Logs
-*.log
-
-# IDE and OS files
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
+.ipynb_checkpoints/

@@ -1,125 +1,151 @@
-import { useState } from 'react';
-import { Sparkles, AlertCircle, CheckCircle2, ChevronDown, ChevronUp, Brain } from 'lucide-react';
+import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-const AIAnalysisPanel = ({ analysis }) => {
-  const [expanded, setExpanded] = useState(true);
-
+const AIAnalysisPanel = ({ analysis, incidentId }) => {
   if (!analysis || !analysis.summary) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={16} className="text-indigo-600" />
-          <h3 className="text-sm font-semibold text-gray-900">AI Analysis</h3>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
+            <Sparkles size={18} className="text-white" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-gray-900">AI Investigation</h3>
+            <p className="text-xs text-gray-500">Powered by Groq</p>
+          </div>
         </div>
-        <p className="text-sm text-gray-500">
-          AI investigation not available for this incident yet.
-        </p>
+        <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+          <Loader2 size={16} className="animate-spin text-gray-400" />
+          <p className="text-sm text-gray-600">AI investigation in progress...</p>
+        </div>
       </div>
     );
   }
 
   const confidenceStyles = {
-    high: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-    medium: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-    low: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+    high: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    medium: { bg: 'bg-amber-50', text: 'text-amber-700' },
+    low: { bg: 'bg-red-50', text: 'text-red-700' },
   };
-
   const conf = confidenceStyles[analysis.confidence] || confidenceStyles.medium;
 
   return (
-    <div className="bg-gradient-to-br from-indigo-50 via-white to-violet-50
-      border border-indigo-100 rounded-2xl overflow-hidden">
+    <div className="bg-white border border-gray-200 rounded-2xl p-6">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-indigo-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <Brain size={16} className="text-white" />
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
+            <Sparkles size={18} className="text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-gray-900">AI Investigation</h3>
-            <p className="text-xs text-gray-500">Powered by Groq · Llama 3</p>
+            <h3 className="text-base font-bold text-gray-900">AI Investigation</h3>
+            <p className="text-xs text-gray-500">
+              Powered by Groq
+              {analysis.analysisSource === 'fallback' && (
+                <span className="ml-2 text-amber-600 font-semibold">· rule-based fallback</span>
+              )}
+            </p>
           </div>
         </div>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="p-1.5 rounded-lg hover:bg-white/60 transition-colors"
-        >
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
+        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md ${conf.bg}`}>
+          <span className={`text-[10px] font-bold uppercase tracking-wide ${conf.text}`}>
+            {analysis.confidence}
+          </span>
+        </div>
       </div>
 
-      {expanded && (
-        <div className="p-5 space-y-5">
-          {/* Summary */}
-          <div>
-            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">
-              Summary
-            </p>
-            <p className="text-sm text-gray-800 leading-relaxed">{analysis.summary}</p>
-          </div>
-
-          {/* Likely Cause */}
-          {analysis.likelyCause && (
-            <div>
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">
-                Likely Cause
-              </p>
-              <div className="flex items-start gap-2 bg-white border border-gray-100 rounded-lg p-3">
-                <AlertCircle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-gray-800 leading-relaxed">{analysis.likelyCause}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Evidence */}
-          {analysis.evidence?.length > 0 && (
-            <div>
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">
-                Evidence
-              </p>
-              <ul className="space-y-1.5">
-                {analysis.evidence.map((e, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600
-                      flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    <span className="leading-relaxed">{e}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Suggested Investigation */}
-          {analysis.suggestedInvestigation && (
-            <div>
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">
-                Suggested Investigation
-              </p>
-              <div className="flex items-start gap-2 bg-white border border-gray-100 rounded-lg p-3">
-                <CheckCircle2 size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-gray-800 leading-relaxed">
-                  {analysis.suggestedInvestigation}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Confidence */}
-          <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${conf.bg} ${conf.border}`}>
-            <Sparkles size={14} className={conf.text} />
-            <div>
-              <p className={`text-xs font-bold ${conf.text} uppercase tracking-wide`}>
-                Confidence: {analysis.confidence || 'medium'}
-              </p>
-              {analysis.confidenceReason && (
-                <p className="text-xs text-gray-600 mt-0.5">{analysis.confidenceReason}</p>
-              )}
-            </div>
-          </div>
+      {/* Summary */}
+      <div className="space-y-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
+            Summary
+          </p>
+          <p className="text-sm text-gray-900 leading-relaxed">{analysis.summary}</p>
         </div>
-      )}
+
+        {/* Evidence */}
+        {analysis.evidence?.length > 0 && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-2">
+              Evidence
+            </p>
+            <ul className="space-y-1.5">
+              {analysis.evidence.map((e, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                  <CheckCircle2 size={13} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{e}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Likely cause — hidden when N/A */}
+        {analysis.likelyCause && analysis.likelyCause !== 'N/A' && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
+              Likely Cause
+            </p>
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
+              <AlertCircle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-800 leading-relaxed">{analysis.likelyCause}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Recommended next — hidden when N/A */}
+        {analysis.recommendedNext && analysis.recommendedNext !== 'N/A' && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
+              Recommended Next
+            </p>
+            <p className="text-sm text-gray-700 leading-relaxed">{analysis.recommendedNext}</p>
+          </div>
+        )}
+
+        {/* Confidence reason */}
+        {analysis.confidenceReason && (
+          <p className="text-xs text-gray-500 italic">{analysis.confidenceReason}</p>
+        )}
+
+        {/* Suggested questions — inline chips */}
+        {analysis.suggestedQuestions?.length > 0 && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-2">
+              Investigate Next
+            </p>
+            <div className="space-y-1.5">
+              {analysis.suggestedQuestions.slice(0, 3).map((q, i) => (
+                <Link
+                  key={i}
+                  to={`/ai?incidentId=${incidentId}`}
+                  className="block w-full text-left text-xs text-indigo-700 bg-indigo-50 
+                    hover:bg-indigo-100 border border-indigo-100 rounded-lg px-3 py-2 
+                    transition-colors flex items-center justify-between gap-2 group"
+                >
+                  <span>{q}</span>
+                  <ArrowRight size={12} className="text-indigo-400 group-hover:text-indigo-600 flex-shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ask DeploySarthi CTA */}
+        {incidentId && (
+          <div className="pt-4 border-t border-gray-100">
+            <Link
+              to={`/ai?incidentId=${incidentId}`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold
+                rounded-xl hover:bg-indigo-700 transition-colors"
+            >
+              <Sparkles size={14} />
+              Ask DeploySarthi for more details
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

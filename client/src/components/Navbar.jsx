@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Search } from 'lucide-react';
+import { Menu, X, Search, Star } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa';
 import Logo from './Logo';
 import ProfileDropdown from './ProfileDropdown';
@@ -9,12 +9,28 @@ import { useAuth } from '../hooks/useAuth';
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [starCount, setStarCount] = useState(null);
   const { user, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Fetch real GitHub star count
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const res = await fetch('https://api.github.com/repos/pie-1/DeploySarthi');
+        if (!res.ok) return;
+        const data = await res.json();
+        setStarCount(data.stargazers_count);
+      } catch {
+        // silently fail
+      }
+    };
+    fetchStars();
   }, []);
 
   const publicLinks = [
@@ -67,16 +83,24 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+          {/* Give Star — GitHub */}
           <a
             href="https://github.com/pie-1/DeploySarthi"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 text-[13px] font-semibold
-              text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+            className="group flex items-center gap-2 px-3 py-2 text-[13px] font-semibold
+              text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50
+              border border-gray-200 hover:border-gray-300 rounded-lg transition-all"
           >
-            <FaGithub size={20} />
+            <FaGithub size={16} className="text-gray-900" />
             <span>Star</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[11px] font-mono">0</span>
+            {starCount !== null && (
+              <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50
+                border border-amber-200 rounded text-[11px] font-mono text-amber-700">
+                <Star size={9} className="fill-amber-500 text-amber-500" />
+                {starCount}
+              </span>
+            )}
           </a>
 
           {user ? (
@@ -124,6 +148,24 @@ const Navbar = () => {
               {link.label}
             </Link>
           ))}
+
+          {/* GitHub link on mobile */}
+          <a
+            href="https://github.com/pie-1/DeploySarthi"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 text-[14px]
+              font-semibold text-gray-800 border border-gray-200 rounded-lg
+              hover:bg-gray-50 transition-colors"
+            onClick={() => setMobileOpen(false)}
+          >
+            <FaGithub size={16} />
+            <span>Star on GitHub</span>
+            {starCount !== null && (
+              <span className="text-[12px] font-mono text-amber-600">· {starCount}</span>
+            )}
+          </a>
+
           <div className="pt-3 mt-3 border-t border-gray-100 space-y-2">
             {user ? (
               <>

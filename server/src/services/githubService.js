@@ -133,6 +133,23 @@ async function exchangeCodeForToken(code) {
 
   return res.data.access_token;
 }
+async function getContents(repoFullName, path, ref = 'main', token = null) {
+  const authToken = token || process.env.GITHUB_TOKEN;
+  if (!authToken) throw new Error('No GitHub token');
+
+  const res = await axios.get(
+    `https://api.github.com/repos/${repoFullName}/contents/${path}`,
+    {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+      params: { ref },
+      timeout: 10000,
+    }
+  );
+  return res.data;
+}
 
 module.exports = {
   getAuthenticatedUser,
@@ -141,4 +158,5 @@ module.exports = {
   getCommit,
   getRepository,
   exchangeCodeForToken,
+  getContents,
 };

@@ -75,17 +75,17 @@ const ChatMessage = ({ message, onFollowUp }) => {
           )}
 
           {/* Likely cause */}
-          {analysis.likelyCause && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1">
-                Likely Cause
-              </p>
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
-                <AlertCircle size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-gray-800 leading-relaxed">{analysis.likelyCause}</p>
+            {analysis.likelyCause && analysis.likelyCause !== 'N/A' && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1">
+                  Likely Cause
+                </p>
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                  <AlertCircle size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-gray-800 leading-relaxed">{analysis.likelyCause}</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}        
 
           {/* Confidence */}
           {analysis.confidence && (

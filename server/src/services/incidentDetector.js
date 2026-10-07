@@ -4,9 +4,23 @@ const aiService = require('./aiService');
 const { buildIncidentContext } = require('./contextBuilder');
 const { broadcast } = require('./wsServer');
 const { BASELINE } = require('./metricSource');
+const alertService = require('./alertService');
 
 const recentIncidents = new Map();
 const COOLDOWN_MS = 5 * 60 * 1000;
+
+// Periodic cleanup — hourly, unref so it doesn't block shutdown
+setInterval(() => {
+  const cutoff = Date.now() - COOLDOWN_MS * 2;
+  let cleaned = 0;
+  for (const [key, ts] of recentIncidents.entries()) {
+    if (ts < cutoff) {
+      recentIncidents.delete(key);
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) console.log(`[incidentDetector] Cleaned ${cleaned} stale cooldowns`);
+}, 60 * 60 * 1000).unref();
 
 const METRIC_LABELS = {
   latency_ms: 'latency',
@@ -14,6 +28,7 @@ const METRIC_LABELS = {
   cpu_pct: 'CPU',
   memory_pct: 'memory',
   db_connections: 'DB connections',
+  cost_per_hour: 'cost/hr',
 };
 
 function metricLabel(metric) {
@@ -98,8 +113,10 @@ async function processMetrics(project, metricData) {
       },
     ],
     aiAnalysis: {
-      summary: 'AI analysis in progress...',
-      confidence: 'medium',
+      summary: severity === 'critical'
+        ? 'AI analysis in progress...'
+        : 'Auto-analysis skipped (non-critical). Click "Ask AI" to analyze.',
+      confidence: severity === 'critical' ? 'medium' : 'pending',
     },
   });
 
@@ -115,9 +132,37 @@ async function processMetrics(project, metricData) {
     aiAnalysis: incident.aiAnalysis,
   });
 
-  investigateIncident(incident._id).catch((err) =>
-    console.error('[ai] investigation failed:', err.message)
-  );
+  // Send Telegram alerts (async, non-blocking)
+  alertService.dispatchIncident(incident, project)
+    .then(async (result) => {
+      if (result.sent) {
+        await incident.save();
+      }
+    })
+    .catch((err) => console.error('[alert] dispatch failed:', err.message));
+
+  // ─────────────────────────────────────────────────────────────
+  // TOKEN OPTIMIZATION: Only auto-investigate critical incidents.
+  // Non-critical incidents wait for user to click "Ask AI".
+  // ─────────────────────────────────────────────────────────────
+  if (severity === 'critical') {
+    investigateIncident(incident._id).catch((err) =>
+      console.error('[ai] investigation failed:', err.message)
+    );
+  } else {
+    console.log(`[ai] Skipped auto-investigation for ${severity} incident (saves Groq tokens)`);
+
+    // Add a timeline marker so the UI shows the skip
+    await Incident.findByIdAndUpdate(incident._id, {
+      $push: {
+        timeline: {
+          timestamp: new Date().toISOString(),
+          service: 'ai',
+          event: 'AI analysis skipped (non-critical) — click "Ask AI" to analyze',
+        },
+      },
+    }).catch(() => {});
+  }
 
   return { created: true, incident, detection };
 }
@@ -142,26 +187,30 @@ async function investigateIncident(incidentId) {
     context,
   });
 
-  incident.aiAnalysis = {
-    ...result.analysis,
-    generatedAt: new Date(),
-  };
+  const updated = await Incident.findByIdAndUpdate(
+    incidentId,
+    {
+      $set: { aiAnalysis: { ...result.analysis, generatedAt: new Date() } },
+      $push: {
+        timeline: {
+          timestamp: new Date().toISOString(),
+          service: 'ai',
+          event: 'AI investigation completed',
+        },
+      },
+    },
+    { returnDocument: 'after' }
+  );
 
-  incident.timeline.push({
-    timestamp: new Date().toISOString(),
-    service: 'ai',
-    event: 'AI investigation completed',
-  });
-
-  await incident.save();
+  if (!updated) return;
 
   broadcast('incident:analyzed', {
-    _id: incident._id,
-    aiAnalysis: incident.aiAnalysis,
-    timeline: incident.timeline,
+    _id: updated._id,
+    aiAnalysis: updated.aiAnalysis,
+    timeline: updated.timeline,
   });
 
-  return incident;
+  return updated;
 }
 
 module.exports = { processMetrics, investigateIncident };

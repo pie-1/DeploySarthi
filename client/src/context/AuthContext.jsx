@@ -9,19 +9,28 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const stored = localStorage.getItem('deploysarthi_user');
-    if (stored) {
+    const token = localStorage.getItem('token');
+    if (stored && token) {
       try {
         setUser(JSON.parse(stored));
       } catch {
         localStorage.removeItem('deploysarthi_user');
+        localStorage.removeItem('token');
       }
+    } else {
+      localStorage.removeItem('deploysarthi_user');
+      localStorage.removeItem('token');
     }
     setLoading(false);
   }, []);
 
   const persist = (data) => {
     localStorage.setItem('deploysarthi_user', JSON.stringify(data));
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
     setUser(data);
+    window.dispatchEvent(new Event('auth:changed'));  // ← NEW
   };
 
   const login = useCallback(async (email, password) => {
@@ -38,7 +47,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(() => {
     localStorage.removeItem('deploysarthi_user');
+    localStorage.removeItem('token');
     setUser(null);
+    window.dispatchEvent(new Event('auth:changed'));  // ← NEW
   }, []);
 
   return (

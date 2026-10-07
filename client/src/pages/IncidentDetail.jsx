@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 import {
   ArrowLeft, AlertTriangle, Clock, CheckCircle2,
   Activity, Server, GitBranch, DollarSign,
@@ -139,6 +140,14 @@ const IncidentDetail = () => {
             </div>
 
             {/* Actions */}
+            <Link
+                to={`/ai?incidentId=${incident._id}`}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold 
+                  bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Sparkles size={14} />
+                Ask AI
+              </Link>
             {incident.status === 'open' && (
               <button
                 onClick={handleAcknowledge}
@@ -198,7 +207,7 @@ const IncidentDetail = () => {
 
         {/* AI Analysis */}
         <div className="mb-6">
-          <AIAnalysisPanel analysis={incident.aiAnalysis} />
+          <AIAnalysisPanel analysis={incident.aiAnalysis} incidentId={incident._id}/>
         </div>
 
         {/* Symptoms */}

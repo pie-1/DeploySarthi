@@ -1,56 +1,43 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Rocket, Triangle, RefreshCw, Plus } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
-import { projectService } from '../services/projectService';
+import { useState, useEffect, useCallback } from 'react';
+import { RefreshCw, RocketIcon, Triangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import DeploymentStats from '../components/deploy/DeploymentStats';
 import DeploymentCard from '../components/deploy/DeploymentCard';
+import CreateProjectModal from '../components/dashboard/CreateProjectModal';
 
 const Deploy = () => {
-  const { user } = useAuth();
   const [deployments, setDeployments] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [vercelProjects, setVercelProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [deployModalOpen, setDeployModalOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [projectsRes, vercelRes] = await Promise.all([
-        projectService.getAll(),
-        api.get('/vercel/projects?limit=50'),
-      ]);
-
-      const allProjects = projectsRes.data.data || [];
+      const vercelRes = await api.get('/vercel/projects?limit=50');
       const vProjects = vercelRes.data.data || [];
-
-      setProjects(allProjects);
       setVercelProjects(vProjects);
 
-      // Fetch deployments for each Vercel project
-      const allDeployments = [];
-      for (const vp of vProjects) {
-        try {
-          const depRes = await api.get(`/vercel/projects/${vp.id}/deployments?limit=5`);
-          const deps = depRes.data.data || [];
-          deps.forEach((d) => {
-            allDeployments.push({
+      const results = await Promise.all(
+        vProjects.map((vp) =>
+          api.get(`/vercel/projects/${vp.id}/deployments?limit=5`)
+            .then((r) => (r.data.data || []).map((d) => ({
               ...d,
               projectId: vp.id,
               vercelProjectName: vp.name,
-            });
-          });
-        } catch (err) {
-          console.error(`Failed to load deployments for ${vp.name}:`, err.message);
-        }
-      }
+            })))
+            .catch(() => [])
+        )
+      );
 
-      // Sort by creation date descending
-      allDeployments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const allDeployments = results.flat().sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
       setDeployments(allDeployments);
     } catch (err) {
       setError('Failed to load deployments');
@@ -58,11 +45,19 @@ const Deploy = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  const handleCreated = (newProject) => {
+    setDeployModalOpen(false);
+    fetchData();
+    if (newProject?._id) {
+      navigate(`/projects/${newProject._id}`);
+    }
+  };
 
   const filtered = filter === 'all'
     ? deployments
@@ -76,27 +71,26 @@ const Deploy = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Deploy</h1>
             <p className="text-sm text-gray-600 mt-1.5">
-              Manage Vercel deployments across your projects
+              Deploy from GitHub · monitor builds · debug failures with AI
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={fetchData}
               disabled={loading}
-              className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors
-                disabled:opacity-50"
+              className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
               title="Refresh"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
-            <Link
-              to="/projects"
+            <button
+              onClick={() => setDeployModalOpen(true)}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold
                 rounded-xl hover:bg-indigo-700 transition-colors"
             >
-              <Plus size={16} />
-              New Project
-            </Link>
+              <RocketIcon size={16} />
+              Deploy New
+            </button>
           </div>
         </div>
 
@@ -106,12 +100,10 @@ const Deploy = () => {
           </div>
         )}
 
-        {/* Stats */}
         {!loading && deployments.length > 0 && (
           <DeploymentStats deployments={deployments} />
         )}
 
-        {/* Filter tabs */}
         {!loading && vercelProjects.length > 0 && (
           <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-2">
             <button
@@ -143,14 +135,10 @@ const Deploy = () => {
           </div>
         )}
 
-        {/* Loading */}
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-24 bg-white border border-gray-200 rounded-2xl animate-pulse"
-              />
+              <div key={i} className="h-24 bg-white border border-gray-200 rounded-2xl animate-pulse" />
             ))}
           </div>
         ) : deployments.length === 0 ? (
@@ -160,16 +148,16 @@ const Deploy = () => {
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">No deployments yet</h2>
             <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-              Create a project, link a GitHub repo, and DeploySarthi will help you deploy it to Vercel.
+              Deploy a GitHub repository to Vercel and DeploySarthi will monitor it automatically.
             </p>
-            <Link
-              to="/projects"
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold 
+            <button
+              onClick={() => setDeployModalOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold
                 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
             >
-              <Plus size={16} />
-              Create your first project
-            </Link>
+              <RocketIcon size={16} />
+              Deploy your first project
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center">
@@ -188,6 +176,12 @@ const Deploy = () => {
           </div>
         )}
       </div>
+
+      <CreateProjectModal
+        open={deployModalOpen}
+        onClose={() => setDeployModalOpen(false)}
+        onCreated={handleCreated}
+      />
     </div>
   );
 };

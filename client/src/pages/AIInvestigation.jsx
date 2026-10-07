@@ -1,10 +1,37 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sparkles, RefreshCw } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { aiService } from '../services/aiService';
 import { incidentService } from '../services/projectService';
+import api from '../services/api';
 import SuggestedPrompts from '../components/ai/SuggestedPrompts';
 import ChatMessage from '../components/ai/ChatMessage';
 import ChatInput from '../components/ai/ChatInput';
+
+// ─────────────────────────────────────────────────────────────
+// Sanitize any incident-shaped payload before sending to Python.
+// ─────────────────────────────────────────────────────────────
+function sanitizeIncident(obj) {
+  if (!obj || typeof obj !== 'object') return {};
+  return {
+    incidentId: typeof obj.incidentId === 'string' ? obj.incidentId : '',
+    title: typeof obj.title === 'string' ? obj.title : '',
+    severity: typeof obj.severity === 'string' ? obj.severity : 'warning',
+    startedAt: typeof obj.startedAt === 'string' ? obj.startedAt : '',
+    symptoms: Array.isArray(obj.symptoms) ? obj.symptoms.filter(Boolean) : [],
+    timeline: Array.isArray(obj.timeline) ? obj.timeline.filter(Boolean) : [],
+    relatedDeployment:
+      obj.relatedDeployment && typeof obj.relatedDeployment === 'object'
+        ? obj.relatedDeployment
+        : {},
+    context:
+      obj.context && typeof obj.context === 'object' ? obj.context : {},
+    userQuestion: typeof obj.userQuestion === 'string' ? obj.userQuestion : '',
+    conversationHistory: Array.isArray(obj.conversationHistory)
+      ? obj.conversationHistory.filter(Boolean)
+      : [],
+  };
+}
 
 const AIInvestigation = () => {
   const [messages, setMessages] = useState([]);
@@ -14,19 +41,69 @@ const AIInvestigation = () => {
   const [loading, setLoading] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [error, setError] = useState('');
+  const [searchParams] = useSearchParams();
+  const preloadIncidentId = searchParams.get('incidentId');
+  const preloadDeploymentId = searchParams.get('deploymentId');
+  const preloadProjectId = searchParams.get('projectId');
   const messagesEndRef = useRef(null);
-  const hasLoadedRef = useRef(false);
+  const initRef = useRef(false);
 
   const loadSuggestions = async (allIncidents) => {
     setLoadingSuggestions(true);
     try {
+      const cacheKey = `suggestions_${(allIncidents || [])
+        .slice(0, 3)
+        .map((i) => i._id || i.title)
+        .join('_')}`;
+
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          setSuggestions(JSON.parse(cached));
+          setLoadingSuggestions(false);
+          return;
+        } catch {}
+      }
+
       const res = await aiService.suggestPrompts({
-        incidents: allIncidents.slice(0, 5),
+        incidents: (allIncidents || []).slice(0, 5),
         projects: [],
         recentDeployments: [],
         userQuestion: '',
       });
-      setSuggestions(res.data?.suggestions || []);
+
+      let newSuggestions = res.data?.suggestions || [];
+
+      // Fallback: generate client-side suggestions if AI returned none
+      if (newSuggestions.length === 0 && allIncidents.length > 0) {
+        const first = allIncidents[0];
+        newSuggestions = [
+          {
+            question: `What caused "${first.title}"?`,
+            reason: 'Start with the most recent incident',
+            type: 'incident_analysis',
+            priority: 'high',
+          },
+          {
+            question: 'Which metrics changed together during this incident?',
+            reason: 'Correlated metrics reveal cascade failures',
+            type: 'metric_comparison',
+            priority: 'medium',
+          },
+          {
+            question: 'Did a recent deployment correlate with this incident?',
+            reason: 'Most incidents trace back to a code change',
+            type: 'deployment_correlation',
+            priority: 'medium',
+          },
+        ];
+      }
+
+      setSuggestions(newSuggestions);
+
+      if (newSuggestions.length > 0) {
+        sessionStorage.setItem(cacheKey, JSON.stringify(newSuggestions));
+      }
     } catch (err) {
       console.error('Failed to load suggestions:', err);
       setSuggestions([]);
@@ -35,14 +112,208 @@ const AIInvestigation = () => {
     }
   };
 
+  // ─────────────────────────────────────────────────────────────
+  // Send a question in deployment mode
+  // ─────────────────────────────────────────────────────────────
+  const sendDeploymentQuestion = async (incident, question) => {
+    const userMsg = { role: 'user', content: question };
+    setMessages([userMsg]);
+    setLoading(true);
+
+    try {
+      const payload = sanitizeIncident({
+        title: incident.title,
+        severity: incident.severity,
+        startedAt: incident.startedAt,
+        symptoms: incident.symptoms,
+        timeline: incident.timeline,
+        userQuestion: question,
+        conversationHistory: [],
+        context: incident.deploymentContext || {},
+      });
+
+      const res = await aiService.chat(payload);
+      const analysis = res.data?.analysis || {};
+      setMessages([
+        userMsg,
+        { role: 'assistant', content: analysis.summary || '', analysis },
+      ]);
+    } catch (err) {
+      console.error('[ai] deployment debug failed:', err);
+      setMessages([
+        userMsg,
+        {
+          role: 'assistant',
+          content: err.response?.data?.message || 'Could not analyze this deployment.',
+          analysis: { summary: 'Investigation failed. Please try again.' },
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Send a question in incident mode (used for preload auto-ask)
+  // ─────────────────────────────────────────────────────────────
+  const handleSendForIncident = async (incident, question) => {
+    const userMsg = { role: 'user', content: question };
+    setMessages([userMsg]);
+    setLoading(true);
+
+    try {
+      const payload = sanitizeIncident({
+        incidentId: incident._id,
+        projectId:
+          typeof incident.project === 'object'
+            ? incident.project?._id
+            : incident.project,
+        title: incident.title,
+        severity: incident.severity,
+        startedAt: incident.startedAt,
+        symptoms: incident.symptoms || [],
+        timeline: incident.timeline || [],
+        relatedDeployment: incident.relatedDeployment || {},
+        userQuestion: question,
+        conversationHistory: [],
+      });
+
+      const res = await aiService.chat(payload);
+      const analysis = res.data?.analysis || {};
+      setMessages([
+        userMsg,
+        { role: 'assistant', content: analysis.summary || '', analysis },
+      ]);
+    } catch (err) {
+      console.error('[ai] incident preload failed:', err);
+      setMessages([
+        userMsg,
+        {
+          role: 'assistant',
+          content: err.response?.data?.message || 'Could not analyze this incident.',
+          analysis: { summary: 'Investigation failed. Please try again.' },
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Preload deployment context (from /deploy → Debug failure)
+  // ─────────────────────────────────────────────────────────────
+  const preloadDeployment = async () => {
+    try {
+      const res = await api.get(`/vercel/deployments/${preloadDeploymentId}`);
+      const deployment = res.data.data;
+      if (!deployment) {
+        setError('Deployment not found');
+        return;
+      }
+
+      const isFailed = deployment.state === 'ERROR' || deployment.state === 'CANCELED';
+
+      const commit = deployment.commit || null;
+      const sanitizedCommit =
+        commit && commit.shortSha
+          ? {
+              sha: commit.shortSha || '',
+              message: commit.message || '(no message)',
+              author: commit.author || 'unknown',
+              date: deployment.createdAt || new Date().toISOString(),
+            }
+          : null;
+
+      const syntheticIncident = {
+        _id: `deployment-${preloadDeploymentId}`,
+        isDeployment: true,
+        deploymentId: preloadDeploymentId,
+        title: `${deployment.name || 'Deployment'} — ${deployment.state}`,
+        severity: isFailed ? 'critical' : 'info',
+        status: 'open',
+        startedAt: deployment.createdAt || new Date().toISOString(),
+        symptoms: [
+          {
+            service: 'vercel',
+            metric: 'deployment_state',
+            value: deployment.state || 'UNKNOWN',
+            baseline: 'READY',
+            changePercent: isFailed ? 100 : 0,
+          },
+        ],
+        timeline: [
+          {
+            timestamp: deployment.createdAt || new Date().toISOString(),
+            service: 'vercel',
+            event: `Deployment ${deployment.state} · commit ${commit?.shortSha || 'unknown'}`,
+          },
+        ],
+        deploymentContext: {
+          project: {
+            name: deployment.name || 'project',
+            environment: deployment.target || 'preview',
+            deploymentTarget: 'vercel',
+          },
+          recentDeployments: [
+            {
+              state: deployment.state || 'UNKNOWN',
+              target: deployment.target || 'production',
+              createdAt: deployment.createdAt || new Date().toISOString(),
+              commitSha: commit?.shortSha || '',
+              commitMessage: commit?.message || '',
+              commitAuthor: commit?.author || '',
+            },
+          ],
+          recentCommits: sanitizedCommit ? [sanitizedCommit] : [],
+        },
+      };
+
+      setSelectedIncident(syntheticIncident);
+
+      const autoQuestion = isFailed
+        ? 'Why did this deployment fail? What should I fix?'
+        : 'Is this deployment healthy? Anything to watch out for?';
+
+      await sendDeploymentQuestion(syntheticIncident, autoQuestion);
+    } catch (err) {
+      console.error('[ai] preload deployment error:', err);
+      setError('Could not load deployment info');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Fetch initial context based on URL params
+  // ─────────────────────────────────────────────────────────────
   const fetchContext = async () => {
     try {
+      // Priority 1: Deployment preload
+      if (preloadDeploymentId) {
+        await preloadDeployment();
+        return;
+      }
+
       const res = await incidentService.getAll();
       const allIncidents = res.data || [];
       setIncidents(allIncidents);
 
-      const firstOpen =
-        allIncidents.find((i) => i.status === 'open') || allIncidents[0];
+      // Priority 2: Incident preload — auto-ask
+      if (preloadIncidentId) {
+        const target = allIncidents.find((i) => i._id === preloadIncidentId);
+        if (target) {
+          setSelectedIncident(target);
+          await loadSuggestions([target]);
+
+          const autoQuestion = `Analyze this incident: "${target.title}". What likely caused it, and what should I check next?`;
+
+          setTimeout(() => {
+            handleSendForIncident(target, autoQuestion);
+          }, 300);
+          return;
+        }
+      }
+
+      // Fallback: first open incident
+      const firstOpen = allIncidents.find((i) => i.status === 'open') || allIncidents[0];
       if (firstOpen) {
         setSelectedIncident(firstOpen);
         await loadSuggestions(allIncidents);
@@ -53,8 +324,8 @@ const AIInvestigation = () => {
   };
 
   useEffect(() => {
-    if (hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
+    if (initRef.current) return;
+    initRef.current = true;
     fetchContext();
   }, []);
 
@@ -69,30 +340,37 @@ const AIInvestigation = () => {
     }
 
     setError('');
-    setMessages((prev) => [...prev, { role: 'user', content: question }]);
+    const userMessage = { role: 'user', content: question };
+    setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
 
     try {
-      const res = await aiService.chat({
-        // CRITICAL: pass incidentId so backend can resolve projectId + build context
-        incidentId: selectedIncident._id,
-        projectId:
-          typeof selectedIncident.project === 'object'
-            ? selectedIncident.project?._id
-            : selectedIncident.project,
+      const history = messages.slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content || m.analysis?.summary || '',
+      }));
 
-        // Incident details
+      const payload = sanitizeIncident({
+        incidentId: selectedIncident.isDeployment ? undefined : selectedIncident._id,
+        projectId:
+          preloadProjectId ||
+          (typeof selectedIncident.project === 'object'
+            ? selectedIncident.project?._id
+            : selectedIncident.project),
         title: selectedIncident.title,
         severity: selectedIncident.severity,
         startedAt: selectedIncident.startedAt,
         symptoms: selectedIncident.symptoms || [],
         timeline: selectedIncident.timeline || [],
         relatedDeployment: selectedIncident.relatedDeployment || {},
-
-        // User's question
         userQuestion: question,
+        conversationHistory: history,
+        context: selectedIncident.isDeployment
+          ? selectedIncident.deploymentContext || {}
+          : undefined,
       });
 
+      const res = await aiService.chat(payload);
       const analysis = res.data?.analysis || {};
       setMessages((prev) => [
         ...prev,
@@ -113,27 +391,31 @@ const AIInvestigation = () => {
     }
   };
 
-  const handleIncidentSelect = (incident) => {
+  const handleIncidentSelect = async (incident) => {
     setSelectedIncident(incident);
     setMessages([]);
+    await loadSuggestions([incident]);
   };
 
   const handleRefresh = async () => {
-    hasLoadedRef.current = false;
+    initRef.current = false;
     await fetchContext();
   };
+
+  const isDeploymentMode = !!selectedIncident?.isDeployment;
 
   return (
     <div className="pb-16 px-6">
       <div className="max-w-7xl mx-auto pt-8">
-        {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
               AI Investigation
             </h1>
             <p className="text-sm text-gray-600 mt-1.5">
-              Guided investigation — ask anything, or follow the suggested prompts
+              {isDeploymentMode
+                ? 'Debugging a deployment — ask anything or follow up'
+                : 'Guided investigation — ask anything, or follow the suggested prompts'}
             </p>
           </div>
           <button
@@ -152,7 +434,6 @@ const AIInvestigation = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Incidents + Suggestions */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white border border-gray-200 rounded-2xl p-5">
               <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
@@ -187,22 +468,23 @@ const AIInvestigation = () => {
               )}
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={14} className="text-indigo-600" />
-                <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
-                  Suggested Investigations
-                </h2>
+            {!isDeploymentMode && (
+              <div className="bg-white border border-gray-200 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles size={14} className="text-indigo-600" />
+                  <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                    Suggested Investigations
+                  </h2>
+                </div>
+                <SuggestedPrompts
+                  suggestions={suggestions}
+                  onSelect={handleSend}
+                  loading={loadingSuggestions}
+                />
               </div>
-              <SuggestedPrompts
-                suggestions={suggestions}
-                onSelect={handleSend}
-                loading={loadingSuggestions}
-              />
-            </div>
+            )}
           </div>
 
-          {/* Right: Chat */}
           <div className="lg:col-span-2">
             <div className="bg-white border border-gray-200 rounded-2xl flex flex-col h-[calc(100vh-12rem)]">
               <div className="flex-1 overflow-y-auto p-6 space-y-6">

@@ -7,15 +7,10 @@ const { protect } = require('../middleware/auth');
 
 router.use(protect);
 
-/**
- * Get profile summary with real stats
- * GET /api/users/profile
- */
 router.get('/profile', async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
     const projects = await Project.find({ owner: req.userId }).select('_id name createdAt');
-
     const projectIds = projects.map((p) => p._id);
 
     const [totalIncidents, resolvedIncidents, activeIncidents] = await Promise.all([
@@ -35,6 +30,7 @@ router.get('/profile', async (req, res) => {
           activeIncidents,
           githubConnected: !!user.github?.connected,
           vercelConnected: !!user.vercel?.connected,
+          telegramConnected: !!user.telegram?.connected,
         },
       },
     });
@@ -44,24 +40,31 @@ router.get('/profile', async (req, res) => {
 });
 
 /**
- * Update user preferences (notifications)
  * PATCH /api/users/preferences
  */
 router.patch('/preferences', async (req, res) => {
   try {
     const { notifications } = req.body;
-
     const update = {};
+
     if (notifications) {
-      if (typeof notifications.whatsappEnabled === 'boolean') {
-        update['notifications.whatsappEnabled'] = notifications.whatsappEnabled;
-      }
-      if (typeof notifications.emailEnabled === 'boolean') {
-        update['notifications.emailEnabled'] = notifications.emailEnabled;
+      if (typeof notifications.telegramEnabled === 'boolean') {
+        update['notifications.telegramEnabled'] = notifications.telegramEnabled;
       }
       if (typeof notifications.criticalOnly === 'boolean') {
         update['notifications.criticalOnly'] = notifications.criticalOnly;
       }
+      // Deprecated fields — allow disabling, ignore enabling
+      if (notifications.emailEnabled === false) {
+        update['notifications.emailEnabled'] = false;
+      }
+      if (notifications.whatsappEnabled === false) {
+        update['notifications.whatsappEnabled'] = false;
+      }
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid preferences' });
     }
 
     const user = await User.findByIdAndUpdate(
@@ -76,15 +79,11 @@ router.patch('/preferences', async (req, res) => {
   }
 });
 
-/**
- * Update basic profile fields (name, phone)
- * PATCH /api/users/profile
- */
 router.patch('/profile', async (req, res) => {
   try {
     const { name, phone } = req.body;
-
     const update = {};
+
     if (name) update.name = name.trim();
     if (typeof phone === 'string') {
       const digits = phone.replace(/\D/g, '');
@@ -109,10 +108,6 @@ router.patch('/profile', async (req, res) => {
   }
 });
 
-/**
- * Get recent activity feed
- * GET /api/users/activity?limit=10
- */
 router.get('/activity', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit || '10', 10);
@@ -126,7 +121,6 @@ router.get('/activity', async (req, res) => {
       .sort({ startedAt: -1 })
       .limit(limit);
 
-    // Merge + sort by date
     const activities = [
       ...projects.map((p) => ({
         type: 'project_created',

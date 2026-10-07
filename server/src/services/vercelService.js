@@ -1,75 +1,69 @@
 /**
  * Vercel API service.
- * Uses the user's Vercel token, or falls back to server-configured token.
+ * Token passed explicitly per call — no global default.
  */
 
 const axios = require('axios');
 
 const VERCEL_API = 'https://api.vercel.com';
+const TEAM_ID = process.env.VERCEL_TEAM_ID || '';
 
 function createClient(token) {
-  const authToken = token || process.env.VERCEL_TOKEN;
-  if (!authToken) {
-    throw new Error('Vercel token not configured');
+  if (!token) {
+    throw new Error('Vercel token required');
   }
   return axios.create({
     baseURL: VERCEL_API,
-    timeout: 15000,
+    timeout: 20000,
     headers: {
-      Authorization: `Bearer ${authToken}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   });
 }
 
-/**
- * Exchange OAuth code for access token.
- */
-async function exchangeCodeForToken(code) {
-  const params = new URLSearchParams({
-    client_id: process.env.VERCEL_CLIENT_ID,
-    client_secret: process.env.VERCEL_CLIENT_SECRET,
-    code,
-    redirect_uri: process.env.VERCEL_OAUTH_REDIRECT_URI,
-    grant_type: 'authorization_code',
-  });
+// ─────────────────────────────────────────────────────────────
+// Verify a token + return user + team info
+// ─────────────────────────────────────────────────────────────
+async function verifyToken(token) {
+  const client = createClient(token);
+  const res = await client.get('/v2/user');
 
-  // NEW endpoint for "Sign in with Vercel"
-  const res = await axios.post(
-    'https://api.vercel.com/login/oauth/token',
-    params.toString(),
-    {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 10000,
+  const user = res.data.user;
+  let teamId = '';
+  let teamName = '';
+
+  // Teams: fetch first team if exists
+  try {
+    const teamsRes = await client.get('/v2/teams');
+    const teams = teamsRes.data.teams || [];
+    if (teams.length > 0) {
+      teamId = teams[0].id;
+      teamName = teams[0].name || teams[0].slug;
     }
-  );
-
-  if (!res.data.access_token) {
-    throw new Error(res.data.error_description || 'OAuth exchange failed');
+  } catch {
+    // Not critical
   }
 
   return {
-    accessToken: res.data.access_token,
-    refreshToken: res.data.refresh_token,
-    idToken: res.data.id_token,
+    userId: user.id,
+    username: user.username,
+    email: user.email,
+    avatar: user.avatar,
+    teamId,
+    teamName,
   };
 }
 
-async function getUser(token) {
-  const client = createClient(token);
-  const res = await client.get('/v2/user');
-  return {
-    id: res.data.user.id,
-    username: res.data.user.username,
-    name: res.data.user.name,
-    email: res.data.user.email,
-    avatar: res.data.user.avatar,
-  };
-}
-
+// ─────────────────────────────────────────────────────────────
+// Projects
+// ─────────────────────────────────────────────────────────────
 async function listProjects(token, limit = 30) {
   const client = createClient(token);
-  const res = await client.get('/v9/projects', { params: { limit } });
+  const params = { limit };
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  const res = await client.get('/v9/projects', { params });
 
   return (res.data.projects || []).map((p) => ({
     id: p.id,
@@ -85,7 +79,10 @@ async function listProjects(token, limit = 30) {
 
 async function getProject(projectIdOrName, token) {
   const client = createClient(token);
-  const res = await client.get(`/v9/projects/${projectIdOrName}`);
+  const params = {};
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  const res = await client.get(`/v9/projects/${projectIdOrName}`, { params });
   const p = res.data;
   return {
     id: p.id,
@@ -99,9 +96,10 @@ async function getProject(projectIdOrName, token) {
 
 async function listDeployments(projectId, token, limit = 20) {
   const client = createClient(token);
-  const res = await client.get('/v6/deployments', {
-    params: { projectId, limit },
-  });
+  const params = { projectId, limit };
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  const res = await client.get('/v6/deployments', { params });
 
   return (res.data.deployments || []).map((d) => ({
     id: d.uid,
@@ -126,7 +124,10 @@ async function listDeployments(projectId, token, limit = 20) {
 
 async function getDeployment(deploymentId, token) {
   const client = createClient(token);
-  const res = await client.get(`/v13/deployments/${deploymentId}`);
+  const params = {};
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  const res = await client.get(`/v13/deployments/${deploymentId}`, { params });
   const d = res.data;
   return {
     id: d.id,
@@ -149,9 +150,10 @@ async function getDeployment(deploymentId, token) {
 
 async function getDeploymentLogs(deploymentId, token) {
   const client = createClient(token);
-  const res = await client.get(`/v3/deployments/${deploymentId}/events`, {
-    params: { builds: 1, limit: 200 },
-  });
+  const params = { builds: 1, limit: 200 };
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  const res = await client.get(`/v3/deployments/${deploymentId}/events`, { params });
   return (res.data.events || []).map((e) => ({
     created: e.created,
     type: e.type,
@@ -159,7 +161,10 @@ async function getDeploymentLogs(deploymentId, token) {
   }));
 }
 
-async function createProjectFromGithub({ name, gitRepo, framework = null }, token) {
+// ─────────────────────────────────────────────────────────────
+// Create project from GitHub
+// ─────────────────────────────────────────────────────────────
+async function createProjectFromGithub({ name, gitRepo, framework, rootDirectory = null }, token) {
   const client = createClient(token);
   const [org, repo] = gitRepo.split('/');
 
@@ -176,8 +181,12 @@ async function createProjectFromGithub({ name, gitRepo, framework = null }, toke
   };
 
   if (framework) payload.framework = framework;
+  if (rootDirectory) payload.rootDirectory = rootDirectory;
 
-  const res = await client.post('/v10/projects', payload);
+  const params = {};
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  const res = await client.post('/v11/projects', payload, { params });
 
   return {
     id: res.data.id,
@@ -190,11 +199,14 @@ async function createProjectFromGithub({ name, gitRepo, framework = null }, toke
 
 async function redeploy(projectId, token) {
   const client = createClient(token);
-  const project = await client.get(`/v9/projects/${projectId}`);
+  const params = {};
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  const project = await client.get(`/v9/projects/${projectId}`, { params });
   const projectName = project.data.name;
 
   const deps = await client.get('/v6/deployments', {
-    params: { projectId, limit: 1, target: 'production' },
+    params: { projectId, limit: 1, target: 'production', ...(TEAM_ID ? { teamId: TEAM_ID } : {}) },
   });
 
   const latest = deps.data.deployments?.[0];
@@ -202,17 +214,21 @@ async function redeploy(projectId, token) {
     throw new Error('No deployments found. Deploy from GitHub first.');
   }
 
-  const res = await client.post('/v13/deployments', {
-    name: projectName,
-    project: projectId,
-    target: 'production',
-    gitSource: {
-      type: 'github',
-      repoId: latest.meta?.githubRepoId,
-      ref: latest.meta?.githubCommitRef,
-      sha: latest.meta?.githubCommitSha,
+  const res = await client.post(
+    '/v13/deployments',
+    {
+      name: projectName,
+      project: projectId,
+      target: 'production',
+      gitSource: {
+        type: 'github',
+        repoId: latest.meta?.githubRepoId,
+        ref: latest.meta?.githubCommitRef,
+        sha: latest.meta?.githubCommitSha,
+      },
     },
-  });
+    { params }
+  );
 
   return {
     id: res.data.id,
@@ -222,23 +238,15 @@ async function redeploy(projectId, token) {
   };
 }
 
-async function deleteProject(projectId, token) {
-  const client = createClient(token);
-  await client.delete(`/v9/projects/${projectId}`);
-  return { success: true };
-}
-
 async function waitForFirstDeployment(projectId, token, maxAttempts = 6) {
   const client = createClient(token);
 
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 2500));
-
     try {
-      const res = await client.get('/v6/deployments', {
-        params: { projectId, limit: 1 },
-      });
-
+      const params = { projectId, limit: 1 };
+      if (TEAM_ID) params.teamId = TEAM_ID;
+      const res = await client.get('/v6/deployments', { params });
       const latest = res.data.deployments?.[0];
       if (latest) {
         return {
@@ -249,17 +257,49 @@ async function waitForFirstDeployment(projectId, token, maxAttempts = 6) {
           createdAt: latest.created,
         };
       }
-    } catch (err) {
-      // continue trying
-    }
+    } catch {}
   }
 
   return null;
 }
+/**
+ * Trigger a fresh deployment for a project.
+ * Called after project creation to force first build.
+ */
+async function triggerDeployment(projectId, projectName, token) {
+  const client = createClient(token);
+  const params = {};
+  if (TEAM_ID) params.teamId = TEAM_ID;
+
+  // Get project details to find default branch
+  const projectRes = await client.get(`/v9/projects/${projectId}`, { params });
+  const project = projectRes.data;
+  const branch = project.link?.productionBranch || 'main';
+  const repoId = project.link?.repoId;
+
+  const payload = {
+    name: projectName,
+    project: projectId,
+    target: 'production',
+    gitSource: {
+      type: 'github',
+      repoId,
+      ref: branch,
+    },
+  };
+
+  const res = await client.post('/v13/deployments', payload, { params });
+
+  return {
+    id: res.data.id,
+    url: res.data.url,
+    state: res.data.readyState || res.data.status || 'QUEUED',
+    createdAt: res.data.createdAt,
+  };
+}
 
 module.exports = {
-  exchangeCodeForToken,
-  getUser,
+  verifyToken,
   listProjects,
   getProject,
   listDeployments,
@@ -267,6 +307,6 @@ module.exports = {
   getDeploymentLogs,
   createProjectFromGithub,
   redeploy,
-  deleteProject,
   waitForFirstDeployment,
+  triggerDeployment,
 };

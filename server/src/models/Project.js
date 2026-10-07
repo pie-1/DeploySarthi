@@ -37,6 +37,26 @@ const projectSchema = new mongoose.Schema({
   vercelUrl: { type: String, default: '' },
   vercelFramework: { type: String, default: '' },
 
+  readiness: {
+  score: { type: Number, default: null },
+  framework: { type: String, default: '' },
+  summary: {
+    total: Number,
+    passed: Number,
+    warnings: Number,
+    critical: Number,
+  },
+  findings: [{
+    check: String,
+    severity: { type: String, enum: ['pass', 'warning', 'critical', 'skip'] },
+    title: String,
+    detail: String,
+    remediation: String,
+  }],
+  checkedAt: Date,
+  runAt: Date,
+},
+
   // Public gallery
   isPublic: { type: Boolean, default: false, index: true },
   publishedAt: { type: Date, default: null },
@@ -46,6 +66,8 @@ const projectSchema = new mongoose.Schema({
   likeCount: { type: Number, default: 0, index: true },
   views: { type: Number, default: 0 },
   commentCount: { type: Number, default: 0 },
+
+
 
   // App-level
   deploymentUrl: { type: String, default: '' },

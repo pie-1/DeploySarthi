@@ -5,6 +5,21 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
+  // Log to localStorage so it survives redirect
+  try {
+    const log = JSON.parse(localStorage.getItem('_debug_pr') || '[]');
+    log.push({
+      t: new Date().toISOString(),
+      path: location.pathname,
+      hasUser: !!user,
+      userId: user?._id || null,
+      loading,
+      hasToken: !!localStorage.getItem('token'),
+      hasStoredUser: !!localStorage.getItem('deploysarthi_user'),
+    });
+    localStorage.setItem('_debug_pr', JSON.stringify(log.slice(-20)));
+  } catch {}
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
